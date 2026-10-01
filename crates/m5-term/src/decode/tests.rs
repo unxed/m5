@@ -8,6 +8,7 @@ use crate::key::EventType;
 
 mod far2l_cases;
 mod kitty_cases;
+mod mouse_cases;
 mod win32_cases;
 
 const SHIFT: u32 = 0x0010;
