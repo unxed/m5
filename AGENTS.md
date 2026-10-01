@@ -6,6 +6,8 @@ m5 — клон Midnight Commander на **Rust** (https://github.com/unxed/m5). 
 
 Сборку и тесты (`cargo fmt/clippy/test/deny`, Android) гонять только в GitHub Actions, локально не собирать.
 
+MSRV — Rust 1.85 (`rust-version` в корневом `Cargo.toml`, edition 2024). Запрещены конструкции языка и API стандартной библиотеки новее 1.85 (в частности `let`-цепочки `if a && let …` — стабильны только с 1.88; вместо них вложенный `if let` или `let … else`); поднимать MSRV только осознанно, вместе с `RUSTUP_TOOLCHAIN`/`toolchain` в джобе `msrv` в `.github/workflows/ci.yml`.
+
 ## Правила
 
 1. Каждый проект — только свои репозитории. PR и ветки в чужих репозиториях (f4, vtui, localecp и др.) запрещены без слова владельца. m5 — Rust, go2dos — Go; код одного проекта не кладётся в другой.
