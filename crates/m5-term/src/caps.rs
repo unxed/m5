@@ -288,7 +288,7 @@ pub fn plan(caps: &Capabilities, opts: &Options) -> Modes {
 }
 
 /// A function that waits up to the given time for input and returns what arrived, if anything.
-pub type Reader = dyn FnMut(Duration) -> io::Result<Option<Vec<u8>>>;
+pub type Reader<'a> = dyn FnMut(Duration) -> io::Result<Option<Vec<u8>>> + 'a;
 
 /// Result of [`negotiate`].
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -306,7 +306,7 @@ pub struct Negotiated {
 /// `read(wait)` returns the bytes that arrived within `wait`, or `None` if nothing did.
 pub fn negotiate<W: Write>(
     out: &mut W,
-    read: &mut Reader,
+    read: &mut Reader<'_>,
     opts: &Options,
     timeout: Duration,
 ) -> io::Result<Negotiated> {

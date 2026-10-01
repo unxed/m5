@@ -9,6 +9,7 @@ pub mod caps;
 pub mod decode;
 pub mod key;
 pub mod key_test;
+pub mod session;
 
 pub use decode::Decoder;
 
