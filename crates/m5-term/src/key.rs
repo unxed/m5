@@ -386,6 +386,8 @@ impl fmt::Display for InputEvent {
 mod tests {
     use super::*;
 
+    // ============= ControlKeyState Tests =============
+
     #[test]
     fn test_control_key_state_flags() {
         let cks = ControlKeyState::new()
@@ -397,20 +399,305 @@ mod tests {
     }
 
     #[test]
+    fn test_control_key_state_all_modifiers() {
+        let cks = ControlKeyState::new()
+            .with_left_ctrl()
+            .with_right_ctrl()
+            .with_left_alt()
+            .with_right_alt()
+            .with_shift();
+
+        assert!(cks.has_ctrl());
+        assert!(cks.has_alt());
+        assert!(cks.has_shift());
+        assert!(cks.contains(ControlKeyState::LEFT_CTRL_PRESSED));
+        assert!(cks.contains(ControlKeyState::RIGHT_CTRL_PRESSED));
+        assert!(cks.contains(ControlKeyState::LEFT_ALT_PRESSED));
+        assert!(cks.contains(ControlKeyState::RIGHT_ALT_PRESSED));
+        assert!(cks.contains(ControlKeyState::SHIFT_PRESSED));
+    }
+
+    #[test]
+    fn test_control_key_state_display() {
+        let cks = ControlKeyState::new()
+            .with_left_ctrl()
+            .with_shift();
+        let display = format!("{}", cks);
+        assert!(display.contains("Ctrl"));
+        assert!(display.contains("Shift"));
+    }
+
+    #[test]
+    fn test_control_key_state_empty() {
+        let cks = ControlKeyState::new();
+        let display = format!("{}", cks);
+        assert_eq!(display, "None");
+    }
+
+    // ============= Key Event Tests =============
+
+    #[test]
     fn test_key_event_creation() {
         let event = InputEvent::key(0x41, 0x1E, 'A', true)
             .with_control_state(ControlKeyState::new().with_left_ctrl());
         assert_eq!(event.event_type, EventType::Key);
         assert_eq!(event.virtual_key_code, 0x41);
+        assert_eq!(event.virtual_scan_code, 0x1E);
+        assert_eq!(event.char_code, 'A');
         assert!(event.key_down);
         assert!(event.control_key_state.has_ctrl());
     }
 
     #[test]
-    fn test_display_format() {
+    fn test_key_event_key_up() {
+        let event = InputEvent::key(0x41, 0x1E, 'A', false);
+        assert!(!event.key_down);
+    }
+
+    #[test]
+    fn test_key_event_repeat_count() {
+        let mut event = InputEvent::key(0x41, 0x1E, 'A', true);
+        event.repeat_count = 5;
+        assert_eq!(event.repeat_count, 5);
+    }
+
+    #[test]
+    fn test_key_event_special_char_escape() {
+        let event = InputEvent::key(0x1B, 0x01, '\x1B', true); // ESC key
+        assert_eq!(event.char_code, '\x1B');
+        assert_eq!(event.virtual_key_code, 0x1B);
+    }
+
+    #[test]
+    fn test_key_event_ctrl_a() {
+        let event = InputEvent::key(0x41, 0x1E, 'a', true)
+            .with_control_state(ControlKeyState::new().with_left_ctrl());
+        assert!(event.control_key_state.has_ctrl());
+        assert_eq!(event.char_code, 'a');
+        let display = format!("{}", event);
+        assert!(display.contains("Ctrl"));
+    }
+
+    #[test]
+    fn test_key_event_shift_up() {
+        let event = InputEvent::key(0x26, 0x48, '^', true) // Up arrow with Shift
+            .with_control_state(ControlKeyState::new().with_shift());
+        assert!(event.control_key_state.has_shift());
+        assert_eq!(event.virtual_key_code, 0x26);
+    }
+
+    #[test]
+    fn test_key_event_alt_f4() {
+        let event = InputEvent::key(0x73, 0x3E, '\0', true) // F4 key
+            .with_control_state(ControlKeyState::new().with_left_alt());
+        assert!(event.control_key_state.has_alt());
+        assert_eq!(event.virtual_key_code, 0x73);
+    }
+
+    #[test]
+    fn test_key_event_enhanced_key_flag() {
+        let cks = ControlKeyState::new()
+            .with_shift();
+        let cks_with_enhanced = ControlKeyState(cks.0 | ControlKeyState::ENHANCED_KEY);
+        let event = InputEvent::key(0x26, 0x48, '\0', true) // Up arrow
+            .with_control_state(cks_with_enhanced);
+        assert!(event.control_key_state.contains(ControlKeyState::ENHANCED_KEY));
+    }
+
+    // ============= Mouse Event Tests =============
+
+    #[test]
+    fn test_mouse_event_creation() {
+        let event = InputEvent::mouse(10, 20, MouseButtonState::FROM_LEFT_1ST_BUTTON_PRESSED, MouseEventFlags::MOVED);
+        assert_eq!(event.event_type, EventType::Mouse);
+        assert_eq!(event.mouse_x, 10);
+        assert_eq!(event.mouse_y, 20);
+        assert_eq!(event.button_state, MouseButtonState::FROM_LEFT_1ST_BUTTON_PRESSED);
+    }
+
+    // ============= Other Event Types =============
+
+    #[test]
+    fn test_focus_event_in() {
+        let event = InputEvent::focus(true);
+        assert_eq!(event.event_type, EventType::Focus);
+        assert!(event.set_focus);
+    }
+
+    #[test]
+    fn test_focus_event_out() {
+        let event = InputEvent::focus(false);
+        assert_eq!(event.event_type, EventType::Focus);
+        assert!(!event.set_focus);
+    }
+
+    #[test]
+    fn test_paste_event_start() {
+        let event = InputEvent::paste(true);
+        assert_eq!(event.event_type, EventType::Paste);
+        assert!(event.paste_start);
+    }
+
+    #[test]
+    fn test_paste_event_end() {
+        let event = InputEvent::paste(false);
+        assert_eq!(event.event_type, EventType::Paste);
+        assert!(!event.paste_start);
+    }
+
+    #[test]
+    fn test_resize_event() {
+        let event = InputEvent::resize();
+        assert_eq!(event.event_type, EventType::Resize);
+    }
+
+    // ============= Display Format Tests =============
+
+    #[test]
+    fn test_display_format_key_event() {
         let event = InputEvent::key(0x41, 0x1E, 'A', true);
         let display = format!("{}", event);
         assert!(display.contains("Key{"));
         assert!(display.contains("VK:0x0041"));
+        assert!(display.contains("DOWN"));
+    }
+
+    #[test]
+    fn test_display_format_key_with_modifiers() {
+        let event = InputEvent::key(0x41, 0x1E, 'A', true)
+            .with_control_state(ControlKeyState::new().with_left_ctrl().with_shift());
+        let display = format!("{}", event);
+        assert!(display.contains("Ctrl"));
+        assert!(display.contains("Shift"));
+    }
+
+    #[test]
+    fn test_display_format_mouse_event() {
+        let event = InputEvent::mouse(15, 25, 0x0001, 0x0001);
+        let display = format!("{}", event);
+        assert!(display.contains("Mouse{"));
+        assert!(display.contains("15"));
+        assert!(display.contains("25"));
+    }
+
+    #[test]
+    fn test_display_format_focus_event() {
+        let event = InputEvent::focus(true);
+        let display = format!("{}", event);
+        assert!(display.contains("Focus{"));
+        assert!(display.contains("IN"));
+    }
+
+    #[test]
+    fn test_display_format_paste_event() {
+        let event = InputEvent::paste(true);
+        let display = format!("{}", event);
+        assert!(display.contains("Paste{"));
+        assert!(display.contains("START"));
+    }
+
+    #[test]
+    fn test_display_format_resize_event() {
+        let event = InputEvent::resize();
+        let display = format!("{}", event);
+        assert!(display.contains("Resize"));
+    }
+
+    // ============= Win32 Compatibility Tests =============
+
+    #[test]
+    fn test_win32_virtual_key_codes() {
+        // Test common Win32 VK constants
+        let vk_a = 0x41;      // VK_A
+        let vk_enter = 0x0D;  // VK_RETURN
+        let vk_shift = 0x10;  // VK_SHIFT
+        let vk_ctrl = 0x11;   // VK_CONTROL
+        let vk_alt = 0x12;    // VK_MENU
+        let vk_escape = 0x1B; // VK_ESCAPE
+        let vk_up = 0x26;     // VK_UP
+        let vk_down = 0x28;   // VK_DOWN
+        let vk_left = 0x25;   // VK_LEFT
+        let vk_right = 0x27;  // VK_RIGHT
+        let vk_f1 = 0x70;     // VK_F1
+        let vk_f4 = 0x73;     // VK_F4
+
+        assert_eq!(vk_a, 0x41);
+        assert_eq!(vk_enter, 0x0D);
+        assert_eq!(vk_escape, 0x1B);
+        assert_eq!(vk_up, 0x26);
+
+        // Create events with these codes
+        let _ev_a = InputEvent::key(vk_a, 0x1E, 'a', true);
+        let _ev_enter = InputEvent::key(vk_enter, 0x1C, '\n', true);
+        let _ev_esc = InputEvent::key(vk_escape, 0x01, '\x1B', true);
+        let _ev_f4 = InputEvent::key(vk_f4, 0x3E, '\0', true);
+    }
+
+    #[test]
+    fn test_input_source_tracking() {
+        let event = InputEvent::key(0x41, 0x1E, 'A', true)
+            .with_source("unix_raw".to_string());
+        assert_eq!(event.input_source, "unix_raw");
+        let display = format!("{}", event);
+        assert!(display.contains("unix_raw"));
+    }
+
+    #[test]
+    fn test_legacy_flag() {
+        let mut event = InputEvent::key(0x41, 0x1E, 'A', true);
+        assert!(!event.is_legacy);
+        event.is_legacy = true;
+        assert!(event.is_legacy);
+    }
+
+    #[test]
+    fn test_far2l_event() {
+        let mut event = InputEvent::key(0x41, 0x1E, 'A', true);
+        event.event_type = EventType::Far2l;
+        event.far2l_command = "F2L_K".to_string();
+        event.far2l_data = vec![0x41, 0x00, 0x00, 0x1E];
+
+        assert_eq!(event.event_type, EventType::Far2l);
+        assert_eq!(event.far2l_command, "F2L_K");
+        assert_eq!(event.far2l_data.len(), 4);
+    }
+
+    // ============= Modifier Combination Tests =============
+
+    #[test]
+    fn test_ctrl_shift_combination() {
+        let cks = ControlKeyState::new()
+            .with_left_ctrl()
+            .with_shift();
+        assert!(cks.has_ctrl());
+        assert!(cks.has_shift());
+        assert!(!cks.has_alt());
+    }
+
+    #[test]
+    fn test_ctrl_alt_shift_combination() {
+        let cks = ControlKeyState::new()
+            .with_left_ctrl()
+            .with_left_alt()
+            .with_shift();
+        assert!(cks.has_ctrl());
+        assert!(cks.has_alt());
+        assert!(cks.has_shift());
+    }
+
+    #[test]
+    fn test_right_vs_left_modifiers() {
+        let left = ControlKeyState::new().with_left_ctrl();
+        let right = ControlKeyState::new().with_right_ctrl();
+        let both = ControlKeyState::new().with_left_ctrl().with_right_ctrl();
+
+        assert!(left.has_ctrl());
+        assert!(right.has_ctrl());
+        assert!(both.has_ctrl());
+
+        assert!(left.contains(ControlKeyState::LEFT_CTRL_PRESSED));
+        assert!(right.contains(ControlKeyState::RIGHT_CTRL_PRESSED));
+        assert!(both.contains(ControlKeyState::LEFT_CTRL_PRESSED));
+        assert!(both.contains(ControlKeyState::RIGHT_CTRL_PRESSED));
     }
 }
