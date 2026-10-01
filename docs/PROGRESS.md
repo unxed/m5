@@ -17,7 +17,7 @@ CI на main был красным начиная с коммита T-03 (fmt, c
 - bracketed paste (`CSI 200~` ... `CSI 201~`: маркеры и текст как события клавиш);
 - отчёты о фокусе (`CSI I` / `CSI O`).
 Все перечисленные в задаче разборщики написаны; согласование возможностей терминала (ответ `CSI ? флаги u`, запросы far2l) и UnixTerminal (T-07) не сделаны.
-Интерактивная проверка `m5 --key-test` в xterm, kitty и WezTerm проведена в CI (`.github/workflows/key-test.yml`), результаты — в `docs/T-03-KEY-TEST.md`; far2l APC и win32-input-mode до приложения не проверены.
+Интерактивная проверка `m5 --key-test` (теперь с `Decoder`: сырые байты и разобранные `InputEvent`; выход `q q q` работает во всех режимах) в xterm, kitty и WezTerm проведена в CI (`.github/workflows/key-test.yml`, сверка `.github/key-test/compare.py`), результаты — в `docs/T-03-KEY-TEST.md`; far2l APC и win32-input-mode до приложения не проверены (нет терминала, который их шлёт).
 
 ## История
 
