@@ -53,35 +53,6 @@ fn line(out: &mut impl Write, text: &str) -> io::Result<()> {
     write!(out, "{text}\r\n")
 }
 
-/// Raw mode and the alternate screen; both are undone when the guard is dropped, so an
-/// error or a panic does not leave the terminal broken.
-#[cfg(unix)]
-struct RawScreen;
-
-#[cfg(unix)]
-impl RawScreen {
-    fn enter() -> io::Result<Self> {
-        use crossterm::execute;
-        use crossterm::terminal::{EnterAlternateScreen, enable_raw_mode};
-        enable_raw_mode()?;
-        let guard = RawScreen;
-        execute!(io::stdout(), EnterAlternateScreen)?;
-        Ok(guard)
-    }
-}
-
-#[cfg(unix)]
-impl Drop for RawScreen {
-    fn drop(&mut self) {
-        use crossterm::{
-            execute,
-            terminal::{LeaveAlternateScreen, disable_raw_mode},
-        };
-        let _ = execute!(io::stdout(), LeaveAlternateScreen);
-        let _ = disable_raw_mode();
-    }
-}
-
 /// Hex dump and character view of one block of input bytes.
 #[cfg(unix)]
 fn describe_raw(bytes: &[u8]) -> String {
@@ -109,9 +80,31 @@ fn describe_event(ev: &InputEvent) -> String {
 ///
 /// Press keys to see their raw bytes and decoded InputEvent representation.
 /// Press 'q' three times in succession to exit.
-#[cfg(unix)]
 pub fn run_key_test() -> io::Result<()> {
+    run(false)
+}
+
+/// Like [`run_key_test`], but first negotiates the terminal's abilities (`caps`): the
+/// answers are printed, the chosen input modes are switched on and are switched off again
+/// when the test ends, also on a panic.
+pub fn run_key_test_negotiating() -> io::Result<()> {
+    run(true)
+}
+
+/// One line about the result of the negotiation.
+#[cfg(unix)]
+fn describe_negotiated(n: &super::caps::Negotiated) -> String {
+    format!(
+        "Capabilities: far2l={} kitty_flags={:?} primary_da={} keyboard={:?}",
+        n.caps.far2l, n.caps.kitty_flags, n.caps.primary_da, n.modes.keyboard
+    )
+}
+
+#[cfg(unix)]
+fn run(negotiate: bool) -> io::Result<()> {
     use super::Decoder;
+    use super::caps::{self, Options};
+    use super::session::Session;
     use std::io::Read;
     use std::sync::mpsc::{self, RecvTimeoutError};
     use std::time::Duration;
@@ -141,8 +134,31 @@ pub fn run_key_test() -> io::Result<()> {
         }
     });
 
-    let screen = RawScreen::enter()?;
+    let session = Session::enter()?;
     let mut stdout = io::stdout();
+    let mut decoder = Decoder::new();
+    let mut events = Vec::new();
+    if negotiate {
+        let opts = Options {
+            far2l: caps::far2l_allowed(
+                std::env::var("TERM").ok().as_deref(),
+                std::env::var("M5_FAR2L").ok().as_deref(),
+            ),
+            ..Options::default()
+        };
+        let mut read = |wait: Duration| match rx.recv_timeout(wait) {
+            Ok(Ok(bytes)) => Ok(Some(bytes)),
+            Ok(Err(e)) => Err(e),
+            Err(_) => Ok(None),
+        };
+        let found = caps::negotiate(&mut stdout, &mut read, &opts, Duration::from_millis(500))?;
+        session.set_modes_off(&found.modes.disable);
+        line(&mut stdout, &describe_negotiated(&found))?;
+        if !found.input.is_empty() {
+            line(&mut stdout, &describe_raw(&found.input))?;
+            decoder.feed(&found.input, &mut events);
+        }
+    }
 
     line(&mut stdout, "Key Test Mode (Win32 InputEvent Format)")?;
     line(
@@ -161,13 +177,10 @@ pub fn run_key_test() -> io::Result<()> {
     line(&mut stdout, "---")?;
     stdout.flush()?;
 
-    let mut decoder = Decoder::new();
     let mut quit = QuitCounter::default();
-    let mut events = Vec::new();
     let mut result = Ok(());
 
     while !quit.done() {
-        events.clear();
         match rx.recv_timeout(ESC_TIMEOUT) {
             Ok(Ok(bytes)) => {
                 if let Err(e) = line(&mut stdout, &describe_raw(&bytes)) {
@@ -202,6 +215,7 @@ pub fn run_key_test() -> io::Result<()> {
                 }
             }
         }
+        events.clear();
         if let Err(e) = stdout.flush() {
             result = Err(e);
         }
@@ -210,7 +224,7 @@ pub fn run_key_test() -> io::Result<()> {
         }
     }
 
-    drop(screen);
+    drop(session);
     result?;
     println!("Exited key test mode");
     Ok(())
@@ -308,7 +322,7 @@ mod tests {
 }
 
 #[cfg(not(unix))]
-pub fn run_key_test() -> io::Result<()> {
+fn run(_negotiate: bool) -> io::Result<()> {
     use super::key::vk_from_ascii;
     use crossterm::event;
 

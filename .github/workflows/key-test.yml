@@ -44,6 +44,10 @@ jobs:
           - { term: wezterm, name: modifyother, mode: '\e[>4;2m',       experimental: true }
           - { term: wezterm, name: kitty-31-cfg, mode: '\e[>31u',       experimental: true, wezcfg: '--config enable_kitty_keyboard=true' }
           - { term: wezterm, name: win32-9001-cfg, mode: '\e[?9001h',   experimental: true, wezcfg: '--config allow_win32_input_mode=true' }
+          - { term: xterm,   name: negotiate,   mode: '',                experimental: false, kt: '--negotiate' }
+          - { term: kitty,   name: negotiate,   mode: '',                experimental: false, kt: '--negotiate' }
+          - { term: wezterm, name: negotiate,   mode: '',                experimental: true,  kt: '--negotiate' }
+          - { term: wezterm, name: negotiate-kitty-cfg, mode: '',        experimental: true,  kt: '--negotiate', wezcfg: '--config enable_kitty_keyboard=true' }
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
@@ -69,6 +73,7 @@ jobs:
           MODE_NAME: ${{ matrix.name }}
           MODE_SEQ: ${{ matrix.mode }}
           WEZ_CFG: ${{ matrix.wezcfg }}
+          KT_ARGS: ${{ matrix.kt }}
         run: |
           set -u
           OUT="$PWD/key-test-out"; mkdir -p "$OUT"
@@ -85,9 +90,9 @@ jobs:
           # alternate screen (kitty keyboard flags are per screen).
           cat > "$OUT/inner.sh" <<'INNER_EOF'
           ( sleep 3; printf '%b' "$MODE_SEQ" > /dev/tty ) &
-          "$M5" --key-test | tee >(while IFS= read -r l; do printf '%s %s\n' "$(date +%s.%N)" "$l"; done > "$TS.ts")
+          "$M5" --key-test $KT_ARGS | tee "$OUT/m5-stdout.bin" | tee >(while IFS= read -r l; do printf '%s %s\n' "$(date +%s.%N)" "$l"; done > "$TS.ts")
           INNER_EOF
-          export M5 TS
+          export M5 TS OUT KT_ARGS
           INNER="bash $OUT/inner.sh"
           export MODE_SEQ
           case "$TERM_NAME" in
@@ -164,7 +169,10 @@ jobs:
             $2=="R" { sub(/^[0-9.]+ R /,""); out=out (n? "  ;;  " : "") $0; n++ }
             END { if (lbl!="") print lbl "\t" (n? out : "(nothing arrived)") }' > "$OUT/paired.txt"
           python3 .github/key-test/compare.py "$OUT" > "$OUT/compare.txt" || true
-          { echo "== $TERM_NAME / $MODE_NAME =="; cat "$OUT/exit.txt"; cat "$OUT/compare.txt"; echo; echo "keys sent: $(wc -l < "$OUT/keys.txt"), Raw lines from m5: $(grep -ac ' Raw:' "$TS.ts" || true)";
+          { echo "== $TERM_NAME / $MODE_NAME =="; cat "$OUT/exit.txt";
+            echo "m5 args: --key-test $KT_ARGS"; grep -a 'Capabilities:' "$TS.ts" | sed -e 's/\x1b\[[0-9;?<>=]*[A-Za-z]//g' -e 's/\r//g' || true
+            echo "-- last 120 bytes m5 wrote (hex; the terminal restore sequences are at the end) --"; tail -c 120 "$OUT/m5-stdout.bin" | od -An -tx1
+            cat "$OUT/compare.txt"; echo; echo "keys sent: $(wc -l < "$OUT/keys.txt"), Raw lines from m5: $(grep -ac ' Raw:' "$TS.ts" || true)";
             echo; echo "-- key | what m5 printed --"; cat "$OUT/paired.txt"; } | tee "$OUT/summary.txt" >> "$GITHUB_STEP_SUMMARY"
           echo "--- typescript (cleaned) ---"; head -c 20000 "$OUT/typescript.txt" || true
       - uses: actions/upload-artifact@v4
