@@ -22,17 +22,27 @@
 
 ---
 
-## D-03: На Unix ввод читаем сами и парсим своим декодером
+## D-03: Win32-совместимый формат InputEvent для всех событий
 
-**Решение**: Собственный декодер ESC-последовательностей для Unix; crossterm только для Windows.
+**Решение**: Используем Win32 INPUT_RECORD-совместимый формат (структура из unxed/winkeys) для всех событий.
+Вместо собственного Key/Mods, используем универсальную `InputEvent` с полями:
+- `EventType` (Key, Mouse, Focus, Paste, Far2l, Resize)
+- `ControlKeyState` (Win32 флаги: LEFT_ALT, RIGHT_ALT, LEFT_CTRL, RIGHT_CTRL, SHIFT, ENHANCED, NUM_LOCK, CAPS_LOCK, SCROLL_LOCK)
+- `VirtualKeyCode`/`VirtualScanCode` (Win32 коды клавиш)
+- `Char`/`UnshiftedChar` (символы)
+- `KeyDown`/`RepeatCount` (статус и повторы)
+- Плюс типоспецифичные поля (MouseX/Y, Far2lCommand, и т.д.)
 
-**Почему**: crossterm отбрасывает неизвестные последовательности (APC far2l, kitty extensions), а нам нужны все для полной поддержки.
+**Почему**: Стабильный и проверенный формат, используемый far2l, f4, и всеми крупными клиентами.
+Идеально конвертится в/из kitty protocol. Упрощает интеграцию и совместимость с существующей инфраструктурой.
 
-**Статус**: T-03 реализован (m5-term/src/key_test.rs: `m5 --key-test` в raw mode выводит сырые байты).
-**ОЖИДАЕТ ИНТЕРАКТИВНОГО ТЕСТИРОВАНИЯ** (пользователь проверяет, отдаёт ли crossterm APC/неизвестные последовательности).
-По результатам спайка: если crossterm передаёт → может работать через unix read + свой декодер; если нет → нужна другая стратегия.
+**Статус**: ✔ Реализовано в m5-term/src/key.rs. InputEvent полностью документирован с методами-конструкторами.
+T-03 обновлен на новый формат (m5 --key-test выводит InputEvent в Win32-стиле).
 
-**Где в коде**: m5-term/src/key_test.rs (спайк), m5-term/src/decoder (будущий полный декодер, T-04).
+**Альтернативы**: Собственный KeyCode enum + Mods бит-флаг (отклонено: менее гибко, не совместимо с far2l/f4).
+
+**Где в коде**: m5-term/src/key.rs (InputEvent, ControlKeyState, EventType, вспомогательные типы),
+m5-term/src/key_test.rs (спайк T-03), m5-term/src/lib.rs (публичный экспорт типов).
 
 ---
 
