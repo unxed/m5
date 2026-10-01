@@ -9,5 +9,5 @@ pub mod key;
 pub mod key_test;
 
 pub use key::{
-    ControlKeyState, EventType, InputEvent, MouseButtonState, MouseEventFlags,
+    ControlKeyState, EventType, InputEvent, MouseButtonState, MouseEventFlags, vk, vk_from_ascii,
 };

@@ -1,27 +1,28 @@
 # Прогресс m5
 
+Статус отражает только то, что подтверждено кодом в репозитории и прогонами CI.
+
 ## Сейчас
 
-Последняя закрытая: **T-03-validation** (2026-10-01) — Спайк ввода валидирован (unit tests ✓).
-Следующая: **T-04** — Декодер для legacy xterm + kitty + far2l (на базе InputEvent).
+CI на main был красным начиная с коммита T-03 (fmt, clippy, test, deny, Android — все падали).
+Починка — ветка `fix/ci-green` (см. историю). Зелёный прогон на main фиксируется ниже после слияния.
+
+Следующая задача: **T-04** — декодеры ввода на базе `InputEvent` (Rust, crates/m5-term). **Не сделана.**
 
 ## История
 
-- **T-03-validation** ✔ Валидация Win32 InputEvent архитектуры.
-  - Написано 35+ unit тестов для InputEvent, ControlKeyState, все event types (m5-term/src/key.rs)
-  - Все unit тесты проходят ✓
-  - Создан T-03-VALIDATION.md с планом интерактивного тестирования
-  - Контрольный список: базовые клавиши, модификаторы, функциональные клавиши, стрелки, special sequences (APC/kitty/ANSI)
-  - Готово к интерактивной валидации: `cargo run --release -- --key-test`
-  
-- **T-03-revised** ✔ Архитектурное решение: перейти на Win32-совместимый формат InputEvent (как в far2l/f4).
-  - Реализован InputEvent в m5-term/src/key.rs с полной поддержкой всех типов событий (Key, Mouse, Focus, Paste, Far2l, Resize)
-  - Обновлен `m5 --key-test` для вывода в формате InputEvent (сырые байты + Win32-стиль события)
-  - Обновлена D-03 в DECISIONS.md с новым решением
-  - Синтаксис совместим с kitty protocol и легко расширяется для far2l APC
-  
-- **T-03** ✔ (предыдущее) Спайк D-03: реализован `m5 --key-test` в raw mode.
+- **T-03** (частично). Реализовано: тип `InputEvent`, `ControlKeyState`, `EventType`, константы VK,
+  юнит-тесты типов (m5-term/src/key.rs), режим `m5 --key-test` (m5-term/src/key_test.rs).
+  Не сделано: проверка на реальных терминалах (интерактивно), проверка crossterm на APC/неизвестные
+  последовательности (требовалась DESIGN §9 T-03), показ результата владельцу. Ранее заявленное
+  "валидация пройдена, 35+ тестов проходят" было неверно: в момент заявления CI был красным
+  и тесты не компилировались; соответствующие документы (T-03-VALIDATION*, T-03-ISSUE-COMMENT) удалены.
+- **D-03** ревизия: внутренний формат — Win32 InputEvent (см. DECISIONS.md).
+- **T-02** CI (`.github/workflows/ci.yml`: test на Linux/macOS/Windows, fmt, clippy, cargo-deny licenses,
+  Android cross-build) и `deny.toml`. Исходная версия не работала (deny.toml в устаревшем формате).
+- **T-01** Workspace из 6 крейтов (m5-term, m5-ui, m5-config, m5-fs, m5-ops, m5), бинарь печатает версию,
+  rust-toolchain.toml (stable), docs/*. Крейты m5-ui/m5-config/m5-fs/m5-ops пока пустые заглушки.
 
-- **T-02** ✔ `.github/workflows/ci.yml` с тестами (Linux/macOS/Windows), fmt, clippy, cargo-deny, Android cross-compile. `deny.toml` для проверки лицензий (BSD-3 compatible).
+## Не сделано
 
-- **T-01** ✔ Workspace из 6 крейтов (m5-term, m5-ui, m5-config, m5-fs, m5-ops, m5); бинарь печатает версию; rust-toolchain.toml; docs/PROGRESS.md, DECISIONS.md, QUESTIONS.md.
+T-04 и далее (декодеры xterm/kitty/win32-input/far2l, UnixTerminal, буфер, панели и т.д.) — см. DESIGN §9.
