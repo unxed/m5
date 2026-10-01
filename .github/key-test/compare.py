@@ -130,8 +130,9 @@ def paste(mine, raw, ok, diff, none):
     for t in mine:
         m = KEY.match(t)
         if m and m.group(3) == "DOWN":
-            text += parse_char(m.group(2))
-    # Shift+Insert itself is not a key of the text; chars of the text only.
+            ch = parse_char(m.group(2))
+            if ch != "\0":  # the Shift+Insert key itself has no character
+                text += ch
     good = text.endswith(PASTE_TEXT) and (starts, ends) in ((0, 0), (1, 1))
     brief = "Paste START/END: %d/%d, text events: %r" % (starts, ends, text)
     if good:
