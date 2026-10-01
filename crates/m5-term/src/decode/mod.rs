@@ -5,7 +5,8 @@
 //! more bytes arrive; the caller reports that nothing else came within its escape timeout
 //! with [`Decoder::flush_timeout`], which is how a lone `Esc` key press is recognized.
 //!
-//! Supported so far (the kitty keyboard protocol is in [`kitty`]): plain characters (UTF-8) and control bytes, `Alt` as an `ESC` prefix,
+//! Supported so far (the kitty keyboard protocol is in [`kitty`], win32-input-mode in
+//! [`win32`]): plain characters (UTF-8) and control bytes, `Alt` as an `ESC` prefix,
 //! and the keys of xterm-style terminals (CSI and SS3 sequences with modifiers).
 //! Terminal replies that are not input (cursor position, device attributes, ...) and
 //! string sequences (APC) are consumed and dropped.
@@ -17,6 +18,7 @@ mod csi;
 mod keys;
 pub mod kitty;
 mod legacy;
+pub mod win32;
 
 #[cfg(test)]
 mod tests;
@@ -35,6 +37,15 @@ const MAX_PENDING: usize = 64 * 1024;
 pub struct Decoder {
     /// Bytes of an incomplete sequence.
     buf: Vec<u8>,
+    /// What the protocols remember between sequences.
+    state: State,
+}
+
+/// Memory of the protocols that spans several sequences.
+#[derive(Debug, Default)]
+struct State {
+    /// High half of a UTF-16 surrogate pair received in win32-input-mode.
+    high_surrogate: Option<u16>,
 }
 
 /// Outcome of parsing at the start of the buffer.
@@ -73,7 +84,7 @@ impl Decoder {
         let mut pos = 0;
         while pos < self.buf.len() {
             let rest = &self.buf[pos..];
-            let used = match parse(rest, out) {
+            let used = match parse(rest, out, &mut self.state) {
                 Parse::Done(n) => n,
                 Parse::Incomplete if flush || rest.len() > MAX_PENDING => {
                     resolve_incomplete(rest, out)
@@ -89,9 +100,9 @@ impl Decoder {
 }
 
 /// Parses one unit at the start of `buf` (not empty).
-fn parse(buf: &[u8], out: &mut Vec<InputEvent>) -> Parse {
+fn parse(buf: &[u8], out: &mut Vec<InputEvent>, st: &mut State) -> Parse {
     if buf[0] == ESC {
-        return parse_escape(buf, out);
+        return parse_escape(buf, out, st);
     }
     match decode_char(buf) {
         Utf8::Char(c, n) => {
@@ -123,15 +134,15 @@ fn resolve_incomplete(rest: &[u8], out: &mut Vec<InputEvent>) -> usize {
 }
 
 /// Parses a unit that starts with `ESC`.
-fn parse_escape(buf: &[u8], out: &mut Vec<InputEvent>) -> Parse {
+fn parse_escape(buf: &[u8], out: &mut Vec<InputEvent>, st: &mut State) -> Parse {
     if buf.len() < 2 {
         return Parse::Incomplete;
     }
     match buf[1] {
-        b'[' => parse_csi(buf, out),
+        b'[' => parse_csi(buf, out, st),
         b'O' => parse_ss3(buf, out),
         b'_' => parse_apc(buf),
-        ESC => parse_double_escape(buf, out),
+        ESC => parse_double_escape(buf, out, st),
         _ => parse_alt_char(buf, out),
     }
 }
@@ -153,12 +164,12 @@ fn parse_alt_char(buf: &[u8], out: &mut Vec<InputEvent>) -> Parse {
 
 /// `ESC ESC`: Alt+Esc, or Alt with the CSI/SS3 sequence that follows (some terminals
 /// send the Alt prefix in front of the key's own sequence).
-fn parse_double_escape(buf: &[u8], out: &mut Vec<InputEvent>) -> Parse {
+fn parse_double_escape(buf: &[u8], out: &mut Vec<InputEvent>, st: &mut State) -> Parse {
     match buf.get(2) {
         None => Parse::Incomplete,
         Some(&(b'[' | b'O')) => {
             let start = out.len();
-            match parse_escape(&buf[1..], out) {
+            match parse_escape(&buf[1..], out, st) {
                 Parse::Done(n) => {
                     for ev in &mut out[start..] {
                         ev.control_key_state.0 |= ALT;
@@ -210,7 +221,7 @@ fn parse_apc(buf: &[u8]) -> Parse {
 }
 
 /// `ESC [`: a CSI sequence.
-fn parse_csi(buf: &[u8], out: &mut Vec<InputEvent>) -> Parse {
+fn parse_csi(buf: &[u8], out: &mut Vec<InputEvent>, st: &mut State) -> Parse {
     if buf.len() >= 3 && buf[2] == b'[' {
         // Linux console: `ESC [ [ A` .. `ESC [ [ E` are F1 .. F5.
         let Some(&code) = buf.get(3) else {
@@ -225,14 +236,18 @@ fn parse_csi(buf: &[u8], out: &mut Vec<InputEvent>) -> Parse {
         Scan::Incomplete => Parse::Incomplete,
         Scan::Bad(n) => Parse::Done(n),
         Scan::Seq(seq, n) => {
-            dispatch_csi(&seq, out);
+            dispatch_csi(&seq, out, st);
             Parse::Done(n)
         }
     }
 }
 
-fn dispatch_csi(seq: &Csi, out: &mut Vec<InputEvent>) {
+fn dispatch_csi(seq: &Csi, out: &mut Vec<InputEvent>, st: &mut State) {
     if seq.private.is_some() || seq.has_intermediate {
+        return;
+    }
+    if seq.final_byte == b'_' {
+        win32::decode(seq, out, &mut st.high_surrogate);
         return;
     }
     if seq.final_byte == b'u' {

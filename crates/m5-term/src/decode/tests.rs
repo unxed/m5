@@ -7,6 +7,7 @@ use super::*;
 use crate::key::EventType;
 
 mod kitty_cases;
+mod win32_cases;
 
 const SHIFT: u32 = 0x0010;
 const ALT: u32 = 0x0002;
