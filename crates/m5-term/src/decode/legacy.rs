@@ -6,7 +6,8 @@
 
 use super::csi::Csi;
 use super::keys::{
-    CTRL, ENHANCED, SHIFT, SRC_CSI, SRC_SS3, key_with_mods, legacy_event, nav_event, xterm_mods,
+    CTRL, ENHANCED, SHIFT, SRC_CSI, SRC_KITTY, SRC_SS3, key_with_mods, legacy_event, nav_event,
+    xterm_mods,
 };
 use crate::key::{InputEvent, vk};
 
@@ -35,7 +36,20 @@ fn is_cursor_report(csi: &Csi) -> bool {
 }
 
 /// Key event of a CSI sequence, or `None` if it is not a key (replies, unknown).
+///
+/// The kitty protocol reuses these sequences and adds an event type after the modifiers
+/// (`CSI 1 ; 5 : 3 A` is a release of Ctrl+Up); such events are not marked legacy.
 pub(crate) fn csi_key(csi: &Csi) -> Option<InputEvent> {
+    let mut ev = csi_key_base(csi)?;
+    if let Some(kind) = csi.sub(1, 1) {
+        ev.key_down = kind != 3;
+        ev.is_legacy = false;
+        ev.input_source = SRC_KITTY.to_string();
+    }
+    Some(ev)
+}
+
+fn csi_key_base(csi: &Csi) -> Option<InputEvent> {
     let first = csi.param(0);
     let mods = xterm_mods(csi.param(1).unwrap_or(1));
     let final_byte = csi.final_byte;

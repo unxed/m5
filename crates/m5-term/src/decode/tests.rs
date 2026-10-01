@@ -6,6 +6,8 @@ use super::keys::{char_event, decode_char, key_with_mods, xterm_mods};
 use super::*;
 use crate::key::EventType;
 
+mod kitty_cases;
+
 const SHIFT: u32 = 0x0010;
 const ALT: u32 = 0x0002;
 const CTRL: u32 = 0x0008;
