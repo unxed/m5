@@ -180,6 +180,10 @@ pub struct InputEvent {
     // Paste Event Data
     pub paste_start: bool,
 
+    // Resize Event Data: the terminal size in cells (0 when the event does not carry it)
+    pub term_width: u16,
+    pub term_height: u16,
+
     // Far2l Extension Data
     pub far2l_command: String,
     pub far2l_data: Vec<u8>,
@@ -212,6 +216,8 @@ impl InputEvent {
             wheel_direction: 0,
             set_focus: false,
             paste_start: false,
+            term_width: 0,
+            term_height: 0,
             far2l_command: String::new(),
             far2l_data: Vec::new(),
             control_key_state: ControlKeyState::new(),
@@ -262,6 +268,15 @@ impl InputEvent {
     /// Create a resize event.
     pub fn resize() -> Self {
         Self::blank(EventType::Resize)
+    }
+
+    /// Create a resize event that carries the new terminal size.
+    pub fn resize_to(width: u16, height: u16) -> Self {
+        InputEvent {
+            term_width: width,
+            term_height: height,
+            ..Self::blank(EventType::Resize)
+        }
     }
 
     /// Set the unshifted character (kitty-style "base" key).
@@ -601,6 +616,15 @@ mod tests {
         assert!(InputEvent::paste(true).paste_start);
         assert!(!InputEvent::paste(false).paste_start);
         assert_eq!(InputEvent::resize().event_type, EventType::Resize);
+    }
+
+    #[test]
+    fn resize_event_carries_the_size() {
+        let ev = InputEvent::resize_to(80, 25);
+        assert_eq!(ev.event_type, EventType::Resize);
+        assert_eq!((ev.term_width, ev.term_height), (80, 25));
+        let plain = InputEvent::resize();
+        assert_eq!((plain.term_width, plain.term_height), (0, 0));
     }
 
     #[test]

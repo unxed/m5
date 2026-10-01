@@ -6,6 +6,7 @@ use super::keys::{char_event, decode_char, key_with_mods, xterm_mods};
 use super::*;
 use crate::key::EventType;
 
+mod far2l_cases;
 mod kitty_cases;
 mod win32_cases;
 
@@ -488,8 +489,14 @@ fn scan_csi_parameters() {
 
 #[test]
 fn scan_string_terminators() {
-    assert!(matches!(scan_string(b"\x1b_ab\x07"), StrScan::Done(5)));
-    assert!(matches!(scan_string(b"\x1b_ab\x1b\\"), StrScan::Done(6)));
+    assert!(matches!(
+        scan_string(b"\x1b_ab\x07"),
+        StrScan::Done { end: 4, len: 5 }
+    ));
+    assert!(matches!(
+        scan_string(b"\x1b_ab\x1b\\"),
+        StrScan::Done { end: 4, len: 6 }
+    ));
     assert!(matches!(scan_string(b"\x1b_ab"), StrScan::Incomplete));
     assert!(matches!(scan_string(b"\x1b_ab\x1b"), StrScan::Incomplete));
     assert!(matches!(scan_string(b"\x1b_ab\x1b["), StrScan::Aborted(4)));
