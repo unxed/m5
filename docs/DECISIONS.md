@@ -196,3 +196,16 @@ m5-term/src/key_test.rs (спайк T-03), m5-term/src/lib.rs (публичны�
 
 **Где в коде**: m5-term/src/decode/far2l.rs, m5-term/src/key.rs.
 
+---
+
+## D-15: Мышь SGR
+
+**Решение** (модуль `decode::mouse`; xterm ctlseqs, режим 1006): `CSI < b;x;y M` — нажатие или движение, `m` — отпускание; координаты 1-based -> 0-based (0 даёт 0, большие значения насыщаются до `i16::MAX`).
+Событие Win32: `button_state` — набор кнопок, зажатых **после** события (отпускание — событие, где бита уже нет), его `Decoder` помнит между отчётами;
+левая/средняя/правая -> `FROM_LEFT_1ST`/`FROM_LEFT_2ND`/`RIGHTMOST`, кнопки 8 и 9 -> `FROM_LEFT_3RD`/`FROM_LEFT_4TH`;
+движение -> `MOUSE_MOVED`; колесо -> `MOUSE_WHEELED` (вверх +1, вниз -1) или `MOUSE_HWHEELED` (вправо +1, влево -1), знак в старшей половине `button_state` (как у far2l) и в `wheel_direction`;
+Shift/Alt/Ctrl -> левые флаги. `DOUBLE_CLICK` терминалы не сообщают, он не выставляется.
+Включение режимов — константы `ENABLE`, `ENABLE_MOTION`, `DISABLE`. Старые кодировки мыши (X10, urxvt) не разбираются.
+
+**Где в коде**: m5-term/src/decode/mouse.rs.
+

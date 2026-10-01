@@ -6,7 +6,7 @@
 //! with [`Decoder::flush_timeout`], which is how a lone `Esc` key press is recognized.
 //!
 //! Supported so far (the kitty keyboard protocol is in [`kitty`], win32-input-mode in
-//! [`win32`], the far2l terminal extensions in [`far2l`]): plain characters (UTF-8) and control bytes, `Alt` as an `ESC` prefix,
+//! [`win32`], the far2l terminal extensions in [`far2l`], SGR mouse reports in [`mouse`]): plain characters (UTF-8) and control bytes, `Alt` as an `ESC` prefix,
 //! and the keys of xterm-style terminals (CSI and SS3 sequences with modifiers).
 //! Terminal replies that are not input (cursor position, device attributes, ...) and
 //! unrelated string sequences (APC) are consumed and dropped.
@@ -19,6 +19,7 @@ pub mod far2l;
 mod keys;
 pub mod kitty;
 mod legacy;
+pub mod mouse;
 pub mod win32;
 
 #[cfg(test)]
@@ -47,6 +48,8 @@ pub struct Decoder {
 struct State {
     /// High half of a UTF-16 surrogate pair received in win32-input-mode.
     high_surrogate: Option<u16>,
+    /// Mouse buttons held down, as Win32 button state bits.
+    mouse_buttons: u32,
 }
 
 /// Outcome of parsing at the start of the buffer.
@@ -247,6 +250,10 @@ fn parse_csi(buf: &[u8], out: &mut Vec<InputEvent>, st: &mut State) -> Parse {
 }
 
 fn dispatch_csi(seq: &Csi, out: &mut Vec<InputEvent>, st: &mut State) {
+    if seq.private == Some(b'<') && !seq.has_intermediate {
+        mouse::decode_sgr(seq, out, &mut st.mouse_buttons);
+        return;
+    }
     if seq.private.is_some() || seq.has_intermediate {
         return;
     }
