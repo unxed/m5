@@ -7,19 +7,21 @@
 CI на main был красным начиная с коммита T-03 (fmt, clippy, test, deny, Android — все падали).
 Починено в PR #1 (fmt, clippy, test x3 ОС, deny licenses, Android cross-build с NDK-линкером — зелёные). Cargo.lock закоммичен (бинарный workspace), тесты идут с `--locked`.
 
-Идёт **T-04..T-06** — декодеры ввода на базе `InputEvent` (Rust, crates/m5-term/src/decode), по одному протоколу на PR.
+Сделано **T-04..T-06** — декодеры ввода на базе `InputEvent` (Rust, crates/m5-term/src/decode), по одному протоколу на PR.
 Разобрано (код и юнит-тесты в репозитории; тесты запускаются только в CI):
 - обычные символы UTF-8 и управляющие байты, Alt как префикс ESC, клавиши xterm/VT (CSI и SS3 с модификаторами, F1..F20, навигация, keypad, modifyOtherKeys, консоль Linux, rxvt);
 - протокол клавиатуры kitty: разбор `CSI u` и форм `CSI ... ~`/буква с типом события, обратное преобразование `InputEvent` -> kitty по флагам (`decode::kitty::encode`);
 - режим win32-input-mode (`CSI Vk;Sc;Uc;Kd;Cs;Rc _`): разбор и `decode::win32::encode`;
 - расширения far2l (APC `f2l`: клавиши K/k/C/c, мышь M/m, размер S; ответы и подтверждение — событиями `Far2l`);
 - мышь SGR (`CSI < b;x;y M/m`: колесо, кнопки 8 и 9, состояние кнопок между отчётами);
-- bracketed paste (`CSI 200~` ... `CSI 201~`: маркеры и текст как события клавиш).
-Остальное — фокус — ещё не сделано.
+- bracketed paste (`CSI 200~` ... `CSI 201~`: маркеры и текст как события клавиш);
+- отчёты о фокусе (`CSI I` / `CSI O`).
+Все перечисленные в задаче разборщики написаны; согласование возможностей терминала (ответ `CSI ? флаги u`, запросы far2l) и UnixTerminal (T-07) не сделаны.
 Интерактивная проверка `m5 --key-test` в xterm, kitty и WezTerm проведена в CI (`.github/workflows/key-test.yml`), результаты — в `docs/T-03-KEY-TEST.md`; far2l APC и win32-input-mode до приложения не проверены.
 
 ## История
 
+- **T-04** (шаг 7, фокус). Модуль `decode::focus`.
 - **T-04** (шаг 6, bracketed paste). Модуль `decode::paste`. Решения — D-16.
 - **T-04** (шаг 5, мышь SGR). Модуль `decode::mouse`. Решения — D-15.
 - **T-06** (шаг 4, far2l APC). Модуль `decode::far2l`; `InputEvent` получил поля размера (`term_width`/`term_height`, `resize_to`). Решения — D-14.
@@ -41,4 +43,4 @@ CI на main был красным начиная с коммита T-03 (fmt, c
 
 ## Не сделано
 
-T-04 и далее (декодеры xterm/kitty/win32-input/far2l, UnixTerminal, буфер, панели и т.д.) — см. DESIGN §9.
+T-07 и далее (UnixTerminal, согласование возможностей, панели и т.д.) — см. DESIGN §9.

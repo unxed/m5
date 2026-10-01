@@ -7,6 +7,7 @@ use super::*;
 use crate::key::EventType;
 
 mod far2l_cases;
+mod focus_cases;
 mod kitty_cases;
 mod mouse_cases;
 mod paste_cases;
