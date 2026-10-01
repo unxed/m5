@@ -15,7 +15,7 @@ use std::io::{self, Write};
 pub fn run_key_test() -> io::Result<()> {
     use crossterm::{
         execute,
-        terminal::{enable_raw_mode, disable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
+        terminal::{EnterAlternateScreen, LeaveAlternateScreen, disable_raw_mode, enable_raw_mode},
     };
 
     // Enable raw mode
@@ -27,8 +27,14 @@ pub fn run_key_test() -> io::Result<()> {
     writeln!(stdout, "Key Test Mode (Win32 InputEvent Format)")?;
     writeln!(stdout, "Press keys to see raw bytes and decoded events")?;
     writeln!(stdout, "Press 'q' three times to exit")?;
-    writeln!(stdout, "This validates that all sequences are passed through correctly")?;
-    writeln!(stdout, "including APC far2l, kitty protocol, and ANSI sequences")?;
+    writeln!(
+        stdout,
+        "This validates that all sequences are passed through correctly"
+    )?;
+    writeln!(
+        stdout,
+        "including APC far2l, kitty protocol, and ANSI sequences"
+    )?;
     writeln!(stdout, "---")?;
     stdout.flush()?;
 
@@ -131,13 +137,22 @@ pub fn run_key_test() -> io::Result<()> {
                 crossterm::event::KeyCode::Char(c) => {
                     let mut ev = InputEvent::key(vk_from_ascii(c), 0, c, true);
                     // Map crossterm modifiers to Win32 ControlKeyState
-                    if key_event.modifiers.contains(crossterm::event::KeyModifiers::SHIFT) {
+                    if key_event
+                        .modifiers
+                        .contains(crossterm::event::KeyModifiers::SHIFT)
+                    {
                         ev.control_key_state = ev.control_key_state.with_shift();
                     }
-                    if key_event.modifiers.contains(crossterm::event::KeyModifiers::CONTROL) {
+                    if key_event
+                        .modifiers
+                        .contains(crossterm::event::KeyModifiers::CONTROL)
+                    {
                         ev.control_key_state = ev.control_key_state.with_left_ctrl();
                     }
-                    if key_event.modifiers.contains(crossterm::event::KeyModifiers::ALT) {
+                    if key_event
+                        .modifiers
+                        .contains(crossterm::event::KeyModifiers::ALT)
+                    {
                         ev.control_key_state = ev.control_key_state.with_left_alt();
                     }
                     ev.with_source("crossterm".to_string())

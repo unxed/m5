@@ -305,15 +305,15 @@ impl fmt::Display for InputEvent {
                 write!(
                     f,
                     "Mouse{{Pos:({},{}) Buttons:0x{:04X} Flags:0x{:04X} Mods:{}}}",
-                    self.mouse_x, self.mouse_y, self.button_state, self.mouse_event_flags, self.control_key_state
+                    self.mouse_x,
+                    self.mouse_y,
+                    self.button_state,
+                    self.mouse_event_flags,
+                    self.control_key_state
                 )
             }
             EventType::Focus => {
-                write!(
-                    f,
-                    "Focus{{{}}}",
-                    if self.set_focus { "IN" } else { "OUT" }
-                )
+                write!(f, "Focus{{{}}}", if self.set_focus { "IN" } else { "OUT" })
             }
             EventType::Paste => {
                 write!(

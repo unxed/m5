@@ -75,4 +75,6 @@ jobs:
         with:
           targets: aarch64-linux-android
       - name: Build for Android
-        run: cargo build --target aarch64-linux-android --verbose
+        run: |
+          export CARGO_TARGET_AARCH64_LINUX_ANDROID_LINKER="$ANDROID_NDK_LATEST_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android24-clang"
+          cargo build --target aarch64-linux-android --verbose
