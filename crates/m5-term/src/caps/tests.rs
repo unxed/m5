@@ -49,8 +49,14 @@ fn kitty_answer_carries_the_flags() {
     assert_eq!(probe.capabilities().kitty_flags, Some(5));
     assert!(probe.is_done());
     // No flags is an answer too.
-    assert_eq!(probe_of(&[KITTY_ANSWER]).capabilities().kitty_flags, Some(0));
-    assert_eq!(probe_of(&[b"\x1b[?999u"]).capabilities().kitty_flags, Some(255));
+    assert_eq!(
+        probe_of(&[KITTY_ANSWER]).capabilities().kitty_flags,
+        Some(0)
+    );
+    assert_eq!(
+        probe_of(&[b"\x1b[?999u"]).capabilities().kitty_flags,
+        Some(255)
+    );
 }
 
 #[test]
@@ -195,7 +201,10 @@ fn plan_win32_only_when_asked_and_not_kitty() {
     assert_eq!(modes.keyboard, KeyboardMode::Win32);
     assert!(modes.enable.starts_with(b"\x1b[?9001h"));
     assert!(modes.disable.ends_with(b"\x1b[?9001l"));
-    assert_eq!(plan(&caps(false, Some(1)), &asked).keyboard, KeyboardMode::Kitty);
+    assert_eq!(
+        plan(&caps(false, Some(1)), &asked).keyboard,
+        KeyboardMode::Kitty
+    );
     let plain = plan(&caps(false, None), &Options::default());
     assert_eq!(plain.keyboard, KeyboardMode::Legacy);
 }
