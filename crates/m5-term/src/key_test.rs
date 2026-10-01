@@ -99,6 +99,12 @@ fn describe_raw(bytes: &[u8]) -> String {
     format!("Raw: {} | Chars: {chars}", hex.join(" "))
 }
 
+/// One line about a decoded event: `Event: ` and the event as the program sees it.
+#[cfg(unix)]
+fn describe_event(ev: &InputEvent) -> String {
+    format!("Event: {ev}")
+}
+
 /// Run interactive key test mode.
 ///
 /// Press keys to see their raw bytes and decoded InputEvent representation.
@@ -177,11 +183,18 @@ pub fn run_key_test() -> io::Result<()> {
             Err(RecvTimeoutError::Timeout) => {
                 if decoder.has_pending() {
                     decoder.flush_timeout(&mut events);
+                    if let Err(e) = line(&mut stdout, "Timeout: unfinished sequence flushed") {
+                        result = Err(e);
+                        break;
+                    }
                 }
             }
             Err(RecvTimeoutError::Disconnected) => break,
         }
         for ev in &events {
+            if let Err(e) = line(&mut stdout, &describe_event(ev)) {
+                result = Err(e);
+            }
             if let Some(n) = quit.feed(ev) {
                 let shown = format!("[quit count: {n}/{}]", QuitCounter::NEEDED);
                 if let Err(e) = line(&mut stdout, &shown) {
@@ -259,6 +272,25 @@ mod tests {
         assert!(!run(&[b"\x11", b"\x11", b"\x11"]).done());
         assert!(!run(&[b"\x1bq", b"\x1bq", b"\x1bq"]).done());
         assert!(!run(&[b"\x1b[113;5u", b"\x1b[113;5u", b"\x1b[113;5u"]).done());
+    }
+
+    #[test]
+    fn event_line_shows_decoded_key() {
+        let mut decoder = Decoder::new();
+        let mut events = Vec::new();
+        decoder.feed(b"\x1b[1;5A", &mut events);
+        assert_eq!(events.len(), 1);
+        let text = describe_event(&events[0]);
+        assert!(text.starts_with("Event: Key{VK:0x0026 "), "{text}");
+        assert!(text.contains("DOWN"), "{text}");
+    }
+
+    #[test]
+    fn event_line_shows_non_key_events() {
+        let mut decoder = Decoder::new();
+        let mut events = Vec::new();
+        decoder.feed(b"\x1b[I", &mut events);
+        assert_eq!(describe_event(&events[0]), "Event: Focus{IN}");
     }
 
     #[test]
