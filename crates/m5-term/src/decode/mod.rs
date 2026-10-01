@@ -7,7 +7,7 @@
 //!
 //! Supported so far (the kitty keyboard protocol is in [`kitty`], win32-input-mode in
 //! [`win32`], the far2l terminal extensions in [`far2l`], SGR mouse reports in [`mouse`],
-//! bracketed paste in [`paste`]): plain characters (UTF-8) and control bytes, `Alt` as an `ESC` prefix,
+//! bracketed paste in [`paste`], focus reports in [`focus`]): plain characters (UTF-8) and control bytes, `Alt` as an `ESC` prefix,
 //! and the keys of xterm-style terminals (CSI and SS3 sequences with modifiers).
 //! Terminal replies that are not input (cursor position, device attributes, ...) and
 //! unrelated string sequences (APC) are consumed and dropped.
@@ -17,6 +17,7 @@
 
 mod csi;
 pub mod far2l;
+pub mod focus;
 mod keys;
 pub mod kitty;
 mod legacy;
@@ -310,6 +311,10 @@ fn dispatch_csi(seq: &Csi, out: &mut Vec<InputEvent>, st: &mut State) {
     if let Some(start) = paste_marker(seq) {
         out.push(paste::marker(start));
         st.in_paste = start;
+        return;
+    }
+    if let Some(ev) = focus::event(seq) {
+        out.push(ev);
         return;
     }
     if seq.private == Some(b'<') && !seq.has_intermediate {

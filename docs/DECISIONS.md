@@ -223,3 +223,12 @@ Shift/Alt/Ctrl -> левые флаги. `DOUBLE_CLICK` терминалы не 
 
 **Где в коде**: m5-term/src/decode/paste.rs, m5-term/src/decode/mod.rs.
 
+---
+
+## D-17: Отчёты о фокусе
+
+**Решение** (модуль `decode::focus`; xterm ctlseqs, режим 1004): `CSI I` -> `InputEvent::focus(true)`, `CSI O` -> `focus(false)`; только без параметров и без приватного маркера.
+Известное ограничение: форма `ESC [ O цифра P` (модифицированные F1..F4 в VTE и консоли FreeBSD) начинается как отчёт о потере фокуса и клавишей не распознаётся.
+
+**Где в коде**: m5-term/src/decode/focus.rs.
+
