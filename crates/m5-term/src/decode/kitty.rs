@@ -223,8 +223,12 @@ pub(crate) fn decode_u(csi: &Csi, out: &mut Vec<InputEvent>) {
         }
     };
 
+    // Some terminals (WezTerm with all kitty flags) send the plain letter as the text of
+    // a Ctrl combination (`CSI 97 ; 5 ; 97 u`); kitty itself sends no text there. The
+    // character of such an event is the same as without text: the control character.
+    let plain_text_of_ctrl = is_plain_text_of_ctrl(&text, cks);
     let mut chars = text.into_iter();
-    if let Some(first) = chars.next() {
+    if let Some(first) = chars.next().filter(|_| !plain_text_of_ctrl) {
         ev.char_code = first;
     }
     out.push(ev);
@@ -235,6 +239,12 @@ pub(crate) fn decode_u(csi: &Csi, out: &mut Vec<InputEvent>) {
         more.key_down = down;
         out.push(more);
     }
+}
+
+/// Whether `text` is one plain ASCII character sent with a Ctrl combination.
+fn is_plain_text_of_ctrl(text: &[char], cks: u32) -> bool {
+    let ctrl_held = cks & (CTRL | RIGHT_CTRL) != 0;
+    ctrl_held && matches!(text, [c] if c.is_ascii() && !c.is_ascii_control())
 }
 
 /// Event of a key that produces a character: `code` is its unshifted character.
