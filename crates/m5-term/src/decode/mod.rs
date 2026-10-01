@@ -5,7 +5,7 @@
 //! more bytes arrive; the caller reports that nothing else came within its escape timeout
 //! with [`Decoder::flush_timeout`], which is how a lone `Esc` key press is recognized.
 //!
-//! Supported so far: plain characters (UTF-8) and control bytes, `Alt` as an `ESC` prefix,
+//! Supported so far (the kitty keyboard protocol is in [`kitty`]): plain characters (UTF-8) and control bytes, `Alt` as an `ESC` prefix,
 //! and the keys of xterm-style terminals (CSI and SS3 sequences with modifiers).
 //! Terminal replies that are not input (cursor position, device attributes, ...) and
 //! string sequences (APC) are consumed and dropped.
@@ -15,6 +15,7 @@
 
 mod csi;
 mod keys;
+pub mod kitty;
 mod legacy;
 
 #[cfg(test)]
@@ -232,6 +233,10 @@ fn parse_csi(buf: &[u8], out: &mut Vec<InputEvent>) -> Parse {
 
 fn dispatch_csi(seq: &Csi, out: &mut Vec<InputEvent>) {
     if seq.private.is_some() || seq.has_intermediate {
+        return;
+    }
+    if seq.final_byte == b'u' {
+        kitty::decode_u(seq, out);
         return;
     }
     if let Some(ev) = legacy::csi_key(seq) {

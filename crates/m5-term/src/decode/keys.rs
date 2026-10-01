@@ -12,6 +12,8 @@ pub(crate) const ENHANCED: u32 = ControlKeyState::ENHANCED_KEY;
 pub(crate) const SRC_CHAR: &str = "legacy_char";
 /// `input_source` of events built from CSI sequences.
 pub(crate) const SRC_CSI: &str = "legacy_csi";
+/// `input_source` of events of the kitty keyboard protocol.
+pub(crate) const SRC_KITTY: &str = "kitty";
 /// `input_source` of events built from SS3 sequences.
 pub(crate) const SRC_SS3: &str = "legacy_ss3";
 
@@ -41,8 +43,9 @@ pub(crate) fn nav_event(vk_code: u16, mods: u32, source: &str) -> InputEvent {
     legacy_event(vk_code, '\0', cks, source)
 }
 
-/// Converts an xterm modifier parameter (1 + bit mask: Shift 1, Alt 2, Ctrl 4, Meta 8)
-/// to Win32 control key state bits. Meta has no Win32 equivalent and is dropped.
+/// Converts an xterm or kitty modifier parameter (1 + bit mask: Shift 1, Alt 2, Ctrl 4,
+/// Super 8, Hyper 16, Meta 32, Caps Lock 64, Num Lock 128) to Win32 control key state bits.
+/// Super, Hyper and Meta have no Win32 equivalent and are dropped.
 pub(crate) fn xterm_mods(param: u32) -> u32 {
     let bits = param.saturating_sub(1);
     let mut cks = 0;
@@ -54,6 +57,12 @@ pub(crate) fn xterm_mods(param: u32) -> u32 {
     }
     if bits & 4 != 0 {
         cks |= CTRL;
+    }
+    if bits & 64 != 0 {
+        cks |= ControlKeyState::CAPS_LOCK_ON;
+    }
+    if bits & 128 != 0 {
+        cks |= ControlKeyState::NUM_LOCK_ON;
     }
     cks
 }

@@ -10,11 +10,13 @@ CI на main был красным начиная с коммита T-03 (fmt, c
 Идёт **T-04..T-06** — декодеры ввода на базе `InputEvent` (Rust, crates/m5-term/src/decode), по одному протоколу на PR.
 Разобрано (код и юнит-тесты в репозитории; тесты запускаются только в CI): обычные символы UTF-8 и управляющие байты,
 Alt как префикс ESC, клавиши xterm/VT (CSI и SS3 с модификаторами, F1..F20, навигация, keypad, modifyOtherKeys,
-консоль Linux, rxvt). Остальное — kitty, win32-input-mode, far2l APC, мышь SGR, bracketed paste, фокус — ещё не сделано.
+консоль Linux, rxvt); протокол клавиатуры kitty (разбор `CSI u` и форм `CSI ... ~`/буква с типом события,
+обратное преобразование `InputEvent` -> kitty по флагам: `decode::kitty::encode`). Остальное — win32-input-mode, far2l APC, мышь SGR, bracketed paste, фокус — ещё не сделано.
 Интерактивная проверка на реальных терминалах этим работам не проводилась.
 
 ## История
 
+- **T-05** (шаг 2, kitty). Модуль `decode::kitty`: разбор и обратное кодирование. Решения — D-12.
 - **T-04** (в работе, шаг 1). `Decoder` (`feed` / `flush_timeout`) и разбор легаси-клавиш xterm. Решения — D-11.
 - **T-03** (частично). Реализовано: тип `InputEvent`, `ControlKeyState`, `EventType`, константы VK,
   юнит-тесты типов (m5-term/src/key.rs), режим `m5 --key-test` (m5-term/src/key_test.rs).
