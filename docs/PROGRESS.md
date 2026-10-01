@@ -16,6 +16,8 @@ Alt как префикс ESC, клавиши xterm/VT (CSI и SS3 с модиф
 
 ## История
 
+- **T-08** (шаг 1, буфер). `m5-ui/src/buffer.rs`: `Color`, `Attrs`, `Style`, `Rect`, `Cell`, `Buffer` (`put_str` с графемами и шириной, `fill`, `to_text`, `to_style_map`) и юнит-тесты; тесты запускаются только в CI. Не сделано из T-08: `frame`, `shadow`, `diff_render`, деградация цветов 16/256/truecolor.
+
 - **T-05** (шаг 2, kitty). Модуль `decode::kitty`: разбор и обратное кодирование. Решения — D-12.
 - **T-04** (в работе, шаг 1). `Decoder` (`feed` / `flush_timeout`) и разбор легаси-клавиш xterm. Решения — D-11.
 - **T-03** (частично). Реализовано: тип `InputEvent`, `ControlKeyState`, `EventType`, константы VK,
