@@ -5,8 +5,11 @@
 
 #![forbid(unsafe_code)]
 
+pub mod decode;
 pub mod key;
 pub mod key_test;
+
+pub use decode::Decoder;
 
 pub use key::{
     ControlKeyState, EventType, InputEvent, MouseButtonState, MouseEventFlags, vk, vk_from_ascii,
