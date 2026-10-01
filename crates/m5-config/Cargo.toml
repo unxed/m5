@@ -1,0 +1,12 @@
+[package]
+name = "m5-config"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Configuration: INI parsing, keymap, skins, settings"
+
+[dependencies]
+thiserror = { workspace = true }
+
+[dev-dependencies]
+tempfile = { workspace = true }

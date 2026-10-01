@@ -1,0 +1,20 @@
+[package]
+name = "m5-term"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Terminal abstraction: raw mode, input/output, event decoding"
+
+[dependencies]
+crossterm = { workspace = true }
+unicode-width = { workspace = true }
+thiserror = { workspace = true }
+signal-hook = { workspace = true, optional = true }
+libc = { workspace = true, optional = true }
+
+[target.'cfg(unix)'.dependencies]
+signal-hook = { workspace = true }
+libc = { workspace = true }
+
+[dev-dependencies]
+tempfile = { workspace = true }

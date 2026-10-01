@@ -1,0 +1,23 @@
+[package]
+name = "m5"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "m5: Midnight Commander-like file manager on Rust"
+
+[[bin]]
+name = "m5"
+path = "src/main.rs"
+
+[dependencies]
+m5-term = { path = "../m5-term" }
+m5-ui = { path = "../m5-ui" }
+m5-config = { path = "../m5-config" }
+m5-fs = { path = "../m5-fs" }
+m5-ops = { path = "../m5-ops" }
+crossterm = { workspace = true }
+thiserror = { workspace = true }
+anyhow = { workspace = true }
+
+[dev-dependencies]
+tempfile = { workspace = true }
