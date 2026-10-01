@@ -22,6 +22,11 @@
 use super::keys::SRC_FAR2L;
 use crate::key::{ControlKeyState, EventType, InputEvent, MouseEventFlags};
 
+/// Asks the terminal to switch the far2l extensions on; a far2l terminal answers `ESC _ far2lok ESC \`.
+pub const QUERY: &[u8] = b"\x1b_far2l1\x1b\\";
+/// Switches the far2l extensions off.
+pub const DISABLE: &[u8] = b"\x1b_far2l0\x1b\\";
+
 /// Value of a base64 digit.
 fn base64_value(b: u8) -> Option<u8> {
     match b {

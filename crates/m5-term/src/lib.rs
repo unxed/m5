@@ -5,6 +5,7 @@
 
 #![forbid(unsafe_code)]
 
+pub mod caps;
 pub mod decode;
 pub mod key;
 pub mod key_test;

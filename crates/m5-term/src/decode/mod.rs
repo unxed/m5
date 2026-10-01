@@ -15,7 +15,7 @@
 //! Events of protocols that have no key release (everything here) carry `key_down = true`
 //! and `is_legacy = true`.
 
-mod csi;
+pub(crate) mod csi;
 pub mod far2l;
 pub mod focus;
 mod keys;
