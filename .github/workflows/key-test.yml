@@ -1,0 +1,144 @@
+name: Key test on real terminals
+
+# Interactive check of `m5 --key-test` (T-03): a real terminal emulator runs
+# under Xvfb, xdotool sends key presses, screenshots and a text log of what
+# m5 printed are saved as an artifact. Nothing here is a pass/fail assertion
+# about key decoding: the job records what the terminal actually delivers.
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths: ['.github/workflows/key-test.yml']
+  push:
+    branches: [main]
+    paths: ['.github/workflows/key-test.yml']
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  key-test:
+    name: ${{ matrix.term }} / ${{ matrix.name }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    continue-on-error: ${{ matrix.experimental }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { term: xterm,   name: legacy,      mode: '',                experimental: false }
+          - { term: xterm,   name: modifyother, mode: '\e[>4;2m',        experimental: false }
+          - { term: kitty,   name: legacy,      mode: '',                experimental: false }
+          - { term: kitty,   name: kitty-31,    mode: '\e[>31u',         experimental: false }
+          - { term: kitty,   name: win32-9001,  mode: '\e[?9001h',       experimental: false }
+          - { term: wezterm, name: legacy,      mode: '',                experimental: true }
+          - { term: wezterm, name: kitty-31,    mode: '\e[>31u',         experimental: true }
+          - { term: wezterm, name: win32-9001,  mode: '\e[?9001h',       experimental: true }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Build m5
+        run: cargo build --release --locked -p m5
+      - name: Install Xvfb, xdotool and terminal
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq --no-install-recommends \
+            xvfb xdotool imagemagick xclip x11-utils xterm kitty \
+            libgl1-mesa-dri libegl1 mesa-vulkan-drivers fonts-dejavu-core
+      - name: Install WezTerm (best effort)
+        if: matrix.term == 'wezterm'
+        run: |
+          curl -fsSL -o /tmp/wezterm.deb \
+            https://github.com/wezterm/wezterm/releases/download/nightly/wezterm-nightly.Ubuntu22.04.deb
+          sudo apt-get install -y -qq /tmp/wezterm.deb
+          wezterm --version
+      - name: Run key test in the terminal
+        env:
+          TERM_NAME: ${{ matrix.term }}
+          MODE_NAME: ${{ matrix.name }}
+          MODE_SEQ: ${{ matrix.mode }}
+        run: |
+          set -u
+          OUT="$PWD/key-test-out"; mkdir -p "$OUT"
+          export DISPLAY=:99
+          Xvfb :99 -screen 0 1280x900x24 >"$OUT/xvfb.log" 2>&1 &
+          sleep 2
+          M5="$PWD/target/release/m5"
+          TS="$OUT/typescript.raw"
+          # The mode sequence is written to the terminal after m5 has switched
+          # to the alternate screen (kitty keyboard flags are per screen).
+          INNER="( sleep 3; printf '%b' \"\$MODE_SEQ\" > /dev/tty ) & exec script -q -f -c '$M5 --key-test' $TS"
+          export MODE_SEQ
+          case "$TERM_NAME" in
+            xterm)   xterm -geometry 110x48 -fa Monospace -fs 10 -e bash -c "$INNER" & ;;
+            kitty)   kitty -o confirm_os_window_close=0 -o remember_window_size=no \
+                       -o initial_window_width=110c -o initial_window_height=48c \
+                       -o font_size=10 bash -c "$INNER" & ;;
+            wezterm) wezterm start --always-new-process -- bash -c "$INNER" & ;;
+          esac
+          TERM_PID=$!
+          sleep 8
+          xwininfo -root -tree > "$OUT/windows.txt" 2>&1 || true
+          WID=$(xdotool search --onlyvisible --name . 2>/dev/null | tail -1 || true)
+          echo "window: $WID" | tee "$OUT/window.txt"
+          [ -n "$WID" ] && xdotool windowfocus "$WID" || true
+          import -window root "$OUT/00-start.png" || true
+          printf 'pasted text from clipboard' | xclip -selection primary
+          printf 'pasted text from clipboard' | xclip -selection clipboard
+          : > "$OUT/keys.txt"
+          send() { # label, xdotool key spec
+            echo "$1|$2" >> "$OUT/keys.txt"
+            xdotool key --delay 40 "$2" || true
+            sleep 0.4
+          }
+          sendtype() { # label, text
+            echo "$1|type $2" >> "$OUT/keys.txt"
+            xdotool type --delay 40 "$2" || true
+            sleep 0.4
+          }
+          shot() { import -window root "$OUT/$1.png" || true; }
+          for k in a b z 1 0 space; do send "$k" "$k"; done
+          send "Shift+a" shift+a; send "Shift+1" shift+1; send "comma" comma; send "slash" slash
+          sendtype "type-cyrillic-ya" "я"
+          shot 01-letters
+          for k in a z bracketleft slash space Return; do send "Ctrl+$k" "ctrl+$k"; done
+          send "Ctrl+Shift+y" ctrl+shift+y; send "Ctrl+Shift+1" ctrl+shift+1
+          shot 02-ctrl
+          for k in a z 1 BackSpace Return; do send "Alt+$k" "alt+$k"; done
+          send "Alt+Shift+a" alt+shift+a; send "Ctrl+Alt+a" ctrl+alt+a
+          shot 03-alt
+          for n in 1 2 3 4 5 6 7 8 9 10 11 12; do send "F$n" "F$n"; done
+          shot 04-fkeys
+          send "Shift+F5" shift+F5; send "Ctrl+F5" ctrl+F5; send "Alt+F5" alt+F5
+          send "Ctrl+Shift+F5" ctrl+shift+F5
+          shot 05-fkeys-mods
+          for k in Up Down Left Right Home End Prior Next Insert Delete; do send "$k" "$k"; done
+          shot 06-nav
+          for k in Up Left Home Delete; do send "Shift+$k" "shift+$k"; send "Ctrl+$k" "ctrl+$k"; send "Alt+$k" "alt+$k"; done
+          shot 07-nav-mods
+          send "Return" Return; send "Shift+Return" shift+Return; send "Ctrl+Return" ctrl+Return
+          send "Escape" Escape; send "Tab" Tab; send "Shift+Tab" shift+Tab; send "BackSpace" BackSpace
+          send "Ctrl+BackSpace" ctrl+BackSpace
+          shot 08-editing
+          # Paste: bracketed paste is reported only if the terminal was asked for it
+          # (m5 --key-test does not ask), so this shows what arrives by default.
+          send "Shift+Insert (paste)" shift+Insert
+          shot 09-paste
+          for i in 1 2 3; do send "q" q; done
+          sleep 2
+          shot 10-exit
+          kill "$TERM_PID" 2>/dev/null || true
+          # Plain-text log: strip escapes and carriage returns from the typescript
+          sed -e 's/\x1b\[[0-9;?<>=]*[A-Za-z]//g' -e 's/\x1b[()][0-9A-Za-z]//g' -e 's/\r//g' "$TS" > "$OUT/typescript.txt" || true
+          grep -a '^Raw:' "$OUT/typescript.txt" > "$OUT/raw-lines.txt" || true
+          { echo "== $TERM_NAME / $MODE_NAME =="; echo "sent keys: $(wc -l < "$OUT/keys.txt"), Raw lines from m5: $(wc -l < "$OUT/raw-lines.txt")";
+            echo; echo "-- keys vs Raw lines (paired by order, may drift if counts differ) --";
+            paste -d'\t' "$OUT/keys.txt" "$OUT/raw-lines.txt"; } | tee "$OUT/summary.txt" >> "$GITHUB_STEP_SUMMARY"
+          echo "--- typescript (cleaned) ---"; head -c 20000 "$OUT/typescript.txt" || true
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: key-test-${{ matrix.term }}-${{ matrix.name }}
+          path: key-test-out/
+          if-no-files-found: warn
