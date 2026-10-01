@@ -2,16 +2,19 @@ name: Key test on real terminals
 
 # Interactive check of `m5 --key-test` (T-03): a real terminal emulator runs
 # under Xvfb, xdotool sends key presses, screenshots and a text log of what
-# m5 printed are saved as an artifact. Nothing here is a pass/fail assertion
-# about key decoding: the job records what the terminal actually delivers.
+# m5 printed are saved as an artifact. compare.py then sets the InputEvent that
+# m5 decoded for every key (VK, character, Shift/Alt/Ctrl) against the expected
+# one. Nothing here is a pass/fail assertion: the job records what the terminal
+# delivers and what the decoder made of it (compare.txt in the artifact and in
+# the step summary).
 
 on:
   workflow_dispatch:
   pull_request:
-    paths: ['.github/workflows/key-test.yml']
+    paths: ['.github/workflows/key-test.yml', '.github/key-test/**']
   push:
     branches: [main]
-    paths: ['.github/workflows/key-test.yml']
+    paths: ['.github/workflows/key-test.yml', '.github/key-test/**']
 
 env:
   CARGO_TERM_COLOR: always
@@ -37,6 +40,10 @@ jobs:
           - { term: wezterm, name: legacy,      mode: '',                experimental: true }
           - { term: wezterm, name: kitty-31,    mode: '\e[>31u',         experimental: true }
           - { term: wezterm, name: win32-9001,  mode: '\e[?9001h',       experimental: true }
+          - { term: kitty,   name: kitty-1,     mode: '\e[>1u',          experimental: false }
+          - { term: wezterm, name: modifyother, mode: '\e[>4;2m',       experimental: true }
+          - { term: wezterm, name: kitty-31-cfg, mode: '\e[>31u',       experimental: true, wezcfg: '--config enable_kitty_keyboard=true' }
+          - { term: wezterm, name: win32-9001-cfg, mode: '\e[?9001h',   experimental: true, wezcfg: '--config allow_win32_input_mode=true' }
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
@@ -61,6 +68,7 @@ jobs:
           TERM_NAME: ${{ matrix.term }}
           MODE_NAME: ${{ matrix.name }}
           MODE_SEQ: ${{ matrix.mode }}
+          WEZ_CFG: ${{ matrix.wezcfg }}
         run: |
           set -u
           OUT="$PWD/key-test-out"; mkdir -p "$OUT"
@@ -87,7 +95,7 @@ jobs:
             kitty)   kitty -o confirm_os_window_close=0 -o remember_window_size=no \
                        -o initial_window_width=110c -o initial_window_height=48c \
                        -o font_size=10 bash -c "$INNER" & ;;
-            wezterm) wezterm start --always-new-process -- bash -c "$INNER" & ;;
+            wezterm) wezterm $WEZ_CFG start --always-new-process -- bash -c "$INNER" & ;;
           esac
           TERM_PID=$!
           sleep 8
@@ -143,6 +151,8 @@ jobs:
           for i in 1 2 3; do send "q" q; done
           sleep 2
           shot 10-exit
+          # Did m5 leave by itself after the three q? (the terminal exits with its command)
+          if kill -0 "$TERM_PID" 2>/dev/null; then echo "m5 exit after q q q: NO (terminal still running)"; else echo "m5 exit after q q q: yes (terminal closed)"; fi | tee "$OUT/exit.txt"
           kill "$TERM_PID" 2>/dev/null || true
           # Plain-text log: strip escapes and carriage returns from the output
           sed -e 's/\x1b\[[0-9;?<>=]*[A-Za-z]//g' -e 's/\x1b[()][0-9A-Za-z]//g' -e 's/\r//g' "$TS" > "$OUT/typescript.txt" || true
@@ -153,7 +163,8 @@ jobs:
             $2=="K" { if (lbl!="") print lbl "\t" (n? out : "(nothing arrived)"); split($0,a," K "); lbl=a[2]; out=""; n=0; next }
             $2=="R" { sub(/^[0-9.]+ R /,""); out=out (n? "  ;;  " : "") $0; n++ }
             END { if (lbl!="") print lbl "\t" (n? out : "(nothing arrived)") }' > "$OUT/paired.txt"
-          { echo "== $TERM_NAME / $MODE_NAME =="; echo "keys sent: $(wc -l < "$OUT/keys.txt"), Raw lines from m5: $(grep -ac ' Raw:' "$TS.ts" || true)";
+          python3 .github/key-test/compare.py "$OUT" > "$OUT/compare.txt" || true
+          { echo "== $TERM_NAME / $MODE_NAME =="; cat "$OUT/exit.txt"; cat "$OUT/compare.txt"; echo; echo "keys sent: $(wc -l < "$OUT/keys.txt"), Raw lines from m5: $(grep -ac ' Raw:' "$TS.ts" || true)";
             echo; echo "-- key | what m5 printed --"; cat "$OUT/paired.txt"; } | tee "$OUT/summary.txt" >> "$GITHUB_STEP_SUMMARY"
           echo "--- typescript (cleaned) ---"; head -c 20000 "$OUT/typescript.txt" || true
       - uses: actions/upload-artifact@v4
