@@ -84,19 +84,19 @@ pub(crate) enum StrScan {
     Incomplete,
     /// An `ESC` that does not start `ST` interrupted the string; skip this many bytes.
     Aborted(usize),
-    /// The whole sequence, terminator included, is this many bytes long.
-    Done(usize),
+    /// The payload is `buf[2..end]`; the whole sequence, terminator included, is `len` bytes.
+    Done { end: usize, len: usize },
 }
 
 /// Scans the string sequence at the start of `buf`, which begins with `ESC` and an introducer.
 pub(crate) fn scan_string(buf: &[u8]) -> StrScan {
     for (i, &b) in buf.iter().enumerate().skip(2) {
         match b {
-            0x07 => return StrScan::Done(i + 1),
+            0x07 => return StrScan::Done { end: i, len: i + 1 },
             0x1B => {
                 return match buf.get(i + 1) {
                     None => StrScan::Incomplete,
-                    Some(&b'\\') => StrScan::Done(i + 2),
+                    Some(&b'\\') => StrScan::Done { end: i, len: i + 2 },
                     Some(_) => StrScan::Aborted(i),
                 };
             }

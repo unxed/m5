@@ -6,15 +6,16 @@
 //! with [`Decoder::flush_timeout`], which is how a lone `Esc` key press is recognized.
 //!
 //! Supported so far (the kitty keyboard protocol is in [`kitty`], win32-input-mode in
-//! [`win32`]): plain characters (UTF-8) and control bytes, `Alt` as an `ESC` prefix,
+//! [`win32`], the far2l terminal extensions in [`far2l`]): plain characters (UTF-8) and control bytes, `Alt` as an `ESC` prefix,
 //! and the keys of xterm-style terminals (CSI and SS3 sequences with modifiers).
 //! Terminal replies that are not input (cursor position, device attributes, ...) and
-//! string sequences (APC) are consumed and dropped.
+//! unrelated string sequences (APC) are consumed and dropped.
 //!
 //! Events of protocols that have no key release (everything here) carry `key_down = true`
 //! and `is_legacy = true`.
 
 mod csi;
+pub mod far2l;
 mod keys;
 pub mod kitty;
 mod legacy;
@@ -141,7 +142,7 @@ fn parse_escape(buf: &[u8], out: &mut Vec<InputEvent>, st: &mut State) -> Parse 
     match buf[1] {
         b'[' => parse_csi(buf, out, st),
         b'O' => parse_ss3(buf, out),
-        b'_' => parse_apc(buf),
+        b'_' => parse_apc(buf, out),
         ESC => parse_double_escape(buf, out, st),
         _ => parse_alt_char(buf, out),
     }
@@ -211,12 +212,15 @@ fn parse_ss3(buf: &[u8], out: &mut Vec<InputEvent>) -> Parse {
     }
 }
 
-/// `ESC _`: an application program command. Consumed; no protocol uses it yet.
-fn parse_apc(buf: &[u8]) -> Parse {
+/// `ESC _`: an application program command; only the far2l extensions use it, the rest is dropped.
+fn parse_apc(buf: &[u8], out: &mut Vec<InputEvent>) -> Parse {
     match scan_string(buf) {
         StrScan::Incomplete => Parse::Incomplete,
         StrScan::Aborted(n) => Parse::Done(n),
-        StrScan::Done(len) => Parse::Done(len),
+        StrScan::Done { end, len } => {
+            far2l::decode(&buf[2..end], out);
+            Parse::Done(len)
+        }
     }
 }
 

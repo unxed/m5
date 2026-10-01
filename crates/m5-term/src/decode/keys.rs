@@ -16,6 +16,8 @@ pub(crate) const SRC_CSI: &str = "legacy_csi";
 pub(crate) const SRC_KITTY: &str = "kitty";
 /// `input_source` of events of win32-input-mode.
 pub(crate) const SRC_WIN32: &str = "win32";
+/// `input_source` of events of the far2l terminal extensions.
+pub(crate) const SRC_FAR2L: &str = "far2l";
 /// `input_source` of events built from SS3 sequences.
 pub(crate) const SRC_SS3: &str = "legacy_ss3";
 
