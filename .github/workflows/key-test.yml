@@ -44,7 +44,7 @@ jobs:
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y -qq --no-install-recommends \
-            xvfb xdotool imagemagick xclip x11-utils xterm kitty \
+            xvfb openbox xdotool imagemagick xclip x11-utils xterm kitty \
             libgl1-mesa-dri libegl1 mesa-vulkan-drivers fonts-dejavu-core
       - name: Install WezTerm (best effort)
         if: matrix.term == 'wezterm'
@@ -64,6 +64,8 @@ jobs:
           export DISPLAY=:99
           Xvfb :99 -screen 0 1280x900x24 >"$OUT/xvfb.log" 2>&1 &
           sleep 2
+          openbox >"$OUT/openbox.log" 2>&1 &
+          sleep 2
           M5="$PWD/target/release/m5"
           TS="$OUT/typescript.raw"
           # The mode sequence is written to the terminal after m5 has switched
@@ -82,21 +84,22 @@ jobs:
           xwininfo -root -tree > "$OUT/windows.txt" 2>&1 || true
           WID=$(xdotool search --onlyvisible --name . 2>/dev/null | tail -1 || true)
           echo "window: $WID" | tee "$OUT/window.txt"
-          # No window manager: X focus follows the pointer, so put it inside the window.
-          xdotool mousemove 300 300
+          xdotool mousemove 300 300 click 1
+          [ -n "$WID" ] && xdotool windowfocus "$WID" >>"$OUT/xdotool.log" 2>&1 || true
           sleep 1
+          { echo "focus: $(xdotool getwindowfocus 2>&1)"; xdotool getmouselocation 2>&1; xdotool getwindowname "$WID" 2>&1; } >>"$OUT/xdotool.log"
           import -window root "$OUT/00-start.png" || true
           printf 'pasted text from clipboard' | xclip -selection primary
           printf 'pasted text from clipboard' | xclip -selection clipboard
           : > "$OUT/keys.txt"
           send() { # label, xdotool key spec
             echo "$1|$2" >> "$OUT/keys.txt"
-            xdotool key --delay 40 "$2" || true
+            xdotool key --delay 40 "$2" >>"$OUT/xdotool.log" 2>&1 || true
             sleep 0.4
           }
           sendtype() { # label, text
             echo "$1|type $2" >> "$OUT/keys.txt"
-            xdotool type --delay 40 "$2" || true
+            xdotool type --delay 40 "$2" >>"$OUT/xdotool.log" 2>&1 || true
             sleep 0.4
           }
           shot() { import -window root "$OUT/$1.png" || true; }
@@ -133,7 +136,7 @@ jobs:
           kill "$TERM_PID" 2>/dev/null || true
           # Plain-text log: strip escapes and carriage returns from the typescript
           sed -e 's/\x1b\[[0-9;?<>=]*[A-Za-z]//g' -e 's/\x1b[()][0-9A-Za-z]//g' -e 's/\r//g' "$TS" > "$OUT/typescript.txt" || true
-          grep -a '^Raw:' "$OUT/typescript.txt" > "$OUT/raw-lines.txt" || true
+          grep -a 'Raw:' "$OUT/typescript.txt" > "$OUT/raw-lines.txt" || true
           { echo "== $TERM_NAME / $MODE_NAME =="; echo "sent keys: $(wc -l < "$OUT/keys.txt"), Raw lines from m5: $(wc -l < "$OUT/raw-lines.txt")";
             echo; echo "-- keys vs Raw lines (paired by order, may drift if counts differ) --";
             paste -d'\t' "$OUT/keys.txt" "$OUT/raw-lines.txt"; } | tee "$OUT/summary.txt" >> "$GITHUB_STEP_SUMMARY"
