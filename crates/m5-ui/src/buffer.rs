@@ -286,7 +286,11 @@ impl Buffer {
                         seen.len() - 1
                     }
                 };
-                out.push(if n < 26 { char::from(b'a' + n as u8) } else { '?' });
+                out.push(if n < 26 {
+                    char::from(b'a' + n as u8)
+                } else {
+                    '?'
+                });
             }
         }
         out
