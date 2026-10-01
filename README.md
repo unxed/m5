@@ -29,7 +29,7 @@ cargo build --release
 
 ## Состояние
 
-Проект в самом начале. Есть Cargo workspace из крейтов `m5`, `m5-config`, `m5-fs`, `m5-ops`, `m5-term`, `m5-ui` и CI (rustfmt, clippy, тесты на Linux/macOS/Windows, cargo-deny, кросс-сборка под Android). Написаны тип `InputEvent` (формат Win32/far2l), режим `--key-test` и декодеры ввода терминала в `m5-term` (модуль `decode`; какие протоколы уже разбираются — в `docs/PROGRESS.md`); `m5-ui`, `m5-config`, `m5-fs`, `m5-ops` — пустые заглушки, файлового менеджера пока нет. Интерактивная проверка на реальных терминалах не проводилась. Подробности — `docs/PROGRESS.md`.
+Проект в самом начале. Есть Cargo workspace из крейтов `m5`, `m5-config`, `m5-fs`, `m5-ops`, `m5-term`, `m5-ui` и CI (rustfmt, clippy, тесты на Linux/macOS/Windows, cargo-deny, кросс-сборка под Android). Написаны тип `InputEvent` (формат Win32/far2l), режим `--key-test` и декодеры ввода терминала в `m5-term` (модуль `decode`; какие протоколы уже разбираются — в `docs/PROGRESS.md`); `m5-ui`, `m5-config`, `m5-fs`, `m5-ops` — пустые заглушки, файлового менеджера пока нет. Интерактивная проверка `--key-test` в xterm, kitty и WezTerm проведена в CI, результаты — `docs/T-03-KEY-TEST.md`. Подробности — `docs/PROGRESS.md`.
 
 ## Development
 

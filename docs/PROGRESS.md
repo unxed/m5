@@ -12,7 +12,7 @@ CI на main был красным начиная с коммита T-03 (fmt, c
 Alt как префикс ESC, клавиши xterm/VT (CSI и SS3 с модификаторами, F1..F20, навигация, keypad, modifyOtherKeys,
 консоль Linux, rxvt); протокол клавиатуры kitty (разбор `CSI u` и форм `CSI ... ~`/буква с типом события,
 обратное преобразование `InputEvent` -> kitty по флагам: `decode::kitty::encode`). Остальное — win32-input-mode, far2l APC, мышь SGR, bracketed paste, фокус — ещё не сделано.
-Интерактивная проверка на реальных терминалах этим работам не проводилась.
+Интерактивная проверка `m5 --key-test` в xterm, kitty и WezTerm проведена в CI (`.github/workflows/key-test.yml`), результаты — в `docs/T-03-KEY-TEST.md`; far2l APC и win32-input-mode до приложения не проверены.
 
 ## История
 
@@ -20,7 +20,7 @@ Alt как префикс ESC, клавиши xterm/VT (CSI и SS3 с модиф
 - **T-04** (в работе, шаг 1). `Decoder` (`feed` / `flush_timeout`) и разбор легаси-клавиш xterm. Решения — D-11.
 - **T-03** (частично). Реализовано: тип `InputEvent`, `ControlKeyState`, `EventType`, константы VK,
   юнит-тесты типов (m5-term/src/key.rs), режим `m5 --key-test` (m5-term/src/key_test.rs).
-  Не сделано: проверка на реальных терминалах (интерактивно), проверка crossterm на APC/неизвестные
+  Проверка на xterm/kitty/WezTerm сделана (docs/T-03-KEY-TEST.md). Не сделано: far2l и win32-input-mode на терминале, который их реально шлёт, проверка crossterm на APC/неизвестные
   последовательности (требовалась DESIGN §9 T-03), показ результата владельцу. Ранее заявленное
   "валидация пройдена, 35+ тестов проходят" было неверно: в момент заявления CI был красным
   и тесты не компилировались; соответствующие документы (T-03-VALIDATION*, T-03-ISSUE-COMMENT) удалены.
