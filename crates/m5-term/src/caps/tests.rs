@@ -222,7 +222,7 @@ fn plan_with_nothing_asked_for_writes_nothing() {
     assert!(modes.enable.is_empty() && modes.disable.is_empty());
 }
 
-fn scripted(chunks: &[&'static [u8]]) -> Box<Reader> {
+fn scripted(chunks: &[&'static [u8]]) -> Box<Reader<'static>> {
     let mut left: Vec<&'static [u8]> = chunks.iter().rev().copied().collect();
     Box::new(move |wait| {
         assert!(!wait.is_zero());
