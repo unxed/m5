@@ -28,6 +28,9 @@ jobs:
         include:
           - { term: xterm,   name: legacy,      mode: '',                experimental: false }
           - { term: xterm,   name: modifyother, mode: '\e[>4;2m',        experimental: false }
+          - { term: xterm,   name: bracketed,   mode: '\e[?2004h',      experimental: false }
+          - { term: kitty,   name: bracketed,   mode: '\e[?2004h',      experimental: false }
+          - { term: wezterm, name: bracketed,   mode: '\e[?2004h',      experimental: true }
           - { term: kitty,   name: legacy,      mode: '',                experimental: false }
           - { term: kitty,   name: kitty-31,    mode: '\e[>31u',         experimental: false }
           - { term: kitty,   name: win32-9001,  mode: '\e[?9001h',       experimental: false }
@@ -150,7 +153,7 @@ jobs:
             $2=="K" { if (lbl!="") print lbl "\t" (n? out : "(nothing arrived)"); split($0,a," K "); lbl=a[2]; out=""; n=0; next }
             $2=="R" { sub(/^[0-9.]+ R /,""); out=out (n? "  ;;  " : "") $0; n++ }
             END { if (lbl!="") print lbl "\t" (n? out : "(nothing arrived)") }' > "$OUT/paired.txt"
-          { echo "== $TERM_NAME / $MODE_NAME =="; echo "keys sent: $(wc -l < "$OUT/keys.txt"), Raw lines from m5: $(grep -ac 'Raw:' "$TS" || true)";
+          { echo "== $TERM_NAME / $MODE_NAME =="; echo "keys sent: $(wc -l < "$OUT/keys.txt"), Raw lines from m5: $(grep -ac ' Raw:' "$TS.ts" || true)";
             echo; echo "-- key | what m5 printed --"; cat "$OUT/paired.txt"; } | tee "$OUT/summary.txt" >> "$GITHUB_STEP_SUMMARY"
           echo "--- typescript (cleaned) ---"; head -c 20000 "$OUT/typescript.txt" || true
       - uses: actions/upload-artifact@v4
