@@ -27,6 +27,23 @@ jobs:
       - name: Run tests
         run: cargo test --locked --verbose --all
 
+  msrv:
+    name: MSRV (1.85)
+    runs-on: ubuntu-latest
+    env:
+      # Must equal rust-version in Cargo.toml. RUSTUP_TOOLCHAIN overrides rust-toolchain.toml.
+      RUSTUP_TOOLCHAIN: "1.85.0"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: "1.85.0"
+      - name: Show toolchain
+        run: rustc --version && cargo --version
+      - uses: Swatinem/rust-cache@v2
+      - name: Build and test on MSRV
+        run: cargo test --locked --verbose --all
+
   fmt:
     name: Rustfmt
     runs-on: ubuntu-latest

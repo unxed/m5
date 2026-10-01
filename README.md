@@ -18,7 +18,7 @@ https://github.com/unxed/mcommander/tree/staging
 ## Build Requirements
 
 - **Rust**: stable (see `rust-toolchain.toml`)
-- **MSRV** (Minimum Supported Rust Version): будет определена в T-01 (пока — latest stable)
+- **MSRV** (Minimum Supported Rust Version): 1.85 (`rust-version` в `Cargo.toml`, edition 2024). Конструкции, появившиеся в более новых версиях (например, `let`-цепочки `if a && let …`, стабильные с 1.88), использовать нельзя; CI-джоб `msrv` собирает и тестирует проект ровно на 1.85.0.
 
 ## Building
 

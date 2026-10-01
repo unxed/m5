@@ -2,6 +2,7 @@
 name = "m5"
 version.workspace = true
 edition.workspace = true
+rust-version.workspace = true
 license.workspace = true
 description = "m5: Midnight Commander-like file manager on Rust"
 

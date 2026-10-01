@@ -129,52 +129,54 @@ pub fn run_key_test() -> io::Result<()> {
     let mut q_count = 0;
 
     loop {
-        if event::poll(std::time::Duration::from_millis(100))?
-            && let event::Event::Key(key_event) = event::read()?
-        {
-            // Convert crossterm event to our InputEvent format
-            let event = match key_event.code {
-                crossterm::event::KeyCode::Char(c) => {
-                    let mut ev = InputEvent::key(vk_from_ascii(c), 0, c, true);
-                    // Map crossterm modifiers to Win32 ControlKeyState
-                    if key_event
-                        .modifiers
-                        .contains(crossterm::event::KeyModifiers::SHIFT)
-                    {
-                        ev.control_key_state = ev.control_key_state.with_shift();
-                    }
-                    if key_event
-                        .modifiers
-                        .contains(crossterm::event::KeyModifiers::CONTROL)
-                    {
-                        ev.control_key_state = ev.control_key_state.with_left_ctrl();
-                    }
-                    if key_event
-                        .modifiers
-                        .contains(crossterm::event::KeyModifiers::ALT)
-                    {
-                        ev.control_key_state = ev.control_key_state.with_left_alt();
-                    }
-                    ev.with_source("crossterm".to_string())
+        if !event::poll(std::time::Duration::from_millis(100))? {
+            continue;
+        }
+        let event::Event::Key(key_event) = event::read()? else {
+            continue;
+        };
+        // Convert crossterm event to our InputEvent format
+        let event = match key_event.code {
+            crossterm::event::KeyCode::Char(c) => {
+                let mut ev = InputEvent::key(vk_from_ascii(c), 0, c, true);
+                // Map crossterm modifiers to Win32 ControlKeyState
+                if key_event
+                    .modifiers
+                    .contains(crossterm::event::KeyModifiers::SHIFT)
+                {
+                    ev.control_key_state = ev.control_key_state.with_shift();
                 }
-                _ => {
-                    let mut ev = InputEvent::key(0, 0, '\0', true);
-                    ev.input_source = "crossterm_special".to_string();
-                    ev
+                if key_event
+                    .modifiers
+                    .contains(crossterm::event::KeyModifiers::CONTROL)
+                {
+                    ev.control_key_state = ev.control_key_state.with_left_ctrl();
                 }
-            };
-
-            println!("Event: {}", event);
-
-            if let crossterm::event::KeyCode::Char('q') = key_event.code {
-                q_count += 1;
-                println!("[quit count: {}/3]", q_count);
-                if q_count >= 3 {
-                    break;
+                if key_event
+                    .modifiers
+                    .contains(crossterm::event::KeyModifiers::ALT)
+                {
+                    ev.control_key_state = ev.control_key_state.with_left_alt();
                 }
-            } else {
-                q_count = 0;
+                ev.with_source("crossterm".to_string())
             }
+            _ => {
+                let mut ev = InputEvent::key(0, 0, '\0', true);
+                ev.input_source = "crossterm_special".to_string();
+                ev
+            }
+        };
+
+        println!("Event: {}", event);
+
+        if let crossterm::event::KeyCode::Char('q') = key_event.code {
+            q_count += 1;
+            println!("[quit count: {}/3]", q_count);
+            if q_count >= 3 {
+                break;
+            }
+        } else {
+            q_count = 0;
         }
     }
 

@@ -2,6 +2,7 @@
 name = "m5-term"
 version.workspace = true
 edition.workspace = true
+rust-version.workspace = true
 license.workspace = true
 description = "Terminal abstraction: raw mode, input/output, event decoding"
 
