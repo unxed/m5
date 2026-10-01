@@ -28,6 +28,7 @@ jobs:
         include:
           - { term: xterm,   name: legacy,      mode: '',                experimental: false }
           - { term: xterm,   name: modifyother, mode: '\e[>4;2m',        experimental: false }
+          - { term: xterm,   name: noscript,    mode: '',                experimental: true }
           - { term: kitty,   name: legacy,      mode: '',                experimental: false }
           - { term: kitty,   name: kitty-31,    mode: '\e[>31u',         experimental: false }
           - { term: kitty,   name: win32-9001,  mode: '\e[?9001h',       experimental: false }
@@ -71,6 +72,7 @@ jobs:
           # The mode sequence is written to the terminal after m5 has switched
           # to the alternate screen (kitty keyboard flags are per screen).
           INNER="( sleep 3; printf '%b' \"\$MODE_SEQ\" > /dev/tty ) & exec script -q -f -c '$M5 --key-test' $TS"
+          [ "$MODE_NAME" = noscript ] && INNER="exec $M5 --key-test"
           export MODE_SEQ
           case "$TERM_NAME" in
             xterm)   xterm -geometry 110x48 -fa Monospace -fs 10 -e bash -c "$INNER" & ;;
