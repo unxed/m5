@@ -89,6 +89,29 @@ fn associated_text() {
 }
 
 #[test]
+fn text_of_ctrl_combinations_is_ignored() {
+    // Bytes captured from WezTerm (nightly) with enable_kitty_keyboard and `CSI > 31 u`
+    // in the key-test CI job: the plain letter comes as text although Ctrl is held.
+    assert_eq!(one(b"\x1b[97;5;97u"), (0x41, '\u{1}', CTRL, true));
+    assert_eq!(one(b"\x1b[122;5;122u"), (0x5A, '\u{1a}', CTRL, true));
+    assert_eq!(one(b"\x1b[97;7;97u"), (0x41, '\u{1}', CTRL | ALT, true));
+    assert_eq!(
+        one(b"\x1b[121:89;6;89u"),
+        (0x59, '\u{19}', CTRL | SHIFT, true)
+    );
+    // The same events without the text give the same result.
+    for (with_text, without) in [
+        (&b"\x1b[91;5;91u"[..], &b"\x1b[91;5u"[..]),
+        (&b"\x1b[47;5;47u"[..], &b"\x1b[47;5u"[..]),
+        (&b"\x1b[97;7;97u"[..], &b"\x1b[97;7u"[..]),
+    ] {
+        assert_eq!(one(with_text), one(without));
+    }
+    // Text that is not the plain letter is still used.
+    assert_eq!(one(b"\x1b[97;5;1103u"), (0x41, '\u{44f}', CTRL, true));
+}
+
+#[test]
 fn alternate_keys() {
     assert_eq!(one(b"\x1b[49:33;2u"), (0x31, '!', SHIFT, true));
     // Ctrl+C typed on a Russian layout: key 1089, shifted 1057, base layout key 99 ('c').
