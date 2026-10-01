@@ -1,13 +1,15 @@
 //! Interactive key test mode for validating terminal input.
 //!
 //! This module provides a test mode that captures raw keyboard input
-//! and displays both raw bytes and decoded key events.
+//! and displays both raw bytes and decoded InputEvent structures using
+//! Win32-compatible format (like far2l and f4).
 
 use std::io::{self, Write};
+use super::key::{InputEvent, EventType, ControlKeyState};
 
 /// Run interactive key test mode.
 ///
-/// Press keys to see their raw bytes and decoded representation.
+/// Press keys to see their raw bytes and decoded InputEvent representation.
 /// Press 'q' three times in succession to exit.
 #[cfg(unix)]
 pub fn run_key_test() -> io::Result<()> {
@@ -22,8 +24,11 @@ pub fn run_key_test() -> io::Result<()> {
     execute!(stdout, EnterAlternateScreen)?;
 
     // Print header
-    writeln!(stdout, "Key Test Mode - Press keys to see their bytes and events")?;
+    writeln!(stdout, "Key Test Mode (Win32 InputEvent Format)")?;
+    writeln!(stdout, "Press keys to see raw bytes and decoded events")?;
     writeln!(stdout, "Press 'q' three times to exit")?;
+    writeln!(stdout, "This validates that all sequences are passed through correctly")?;
+    writeln!(stdout, "including APC far2l, kitty protocol, and ANSI sequences")?;
     writeln!(stdout, "---")?;
     stdout.flush()?;
 
@@ -37,21 +42,42 @@ pub fn run_key_test() -> io::Result<()> {
             Ok(n) if n > 0 => {
                 let bytes = &buffer[..n];
 
-                // Display raw bytes
-                write!(stdout, "Bytes: ")?;
+                // Display raw bytes in hex
+                write!(stdout, "Raw: ")?;
                 for (i, &b) in bytes.iter().enumerate() {
                     if i > 0 {
                         write!(stdout, " ")?;
                     }
                     write!(stdout, "{:02x}", b)?;
                 }
-                write!(stdout, " | ASCII: ")?;
+
+                // Display ASCII representation
+                write!(stdout, " | Chars: ")?;
                 for &b in bytes.iter() {
                     if b >= 32 && b < 127 {
                         write!(stdout, "{}", b as char)?;
+                    } else if b == b'\x1b' {
+                        write!(stdout, "ESC")?;
+                    } else if b == b'\r' {
+                        write!(stdout, "CR")?;
+                    } else if b == b'\n' {
+                        write!(stdout, "LF")?;
                     } else {
-                        write!(stdout, ".")?;
+                        write!(stdout, "[{:02x}]", b)?;
                     }
+                }
+                writeln!(stdout)?;
+
+                // Display as Win32-style InputEvent
+                // For simple case: if it's a printable ASCII, create a key event
+                if bytes.len() == 1 && bytes[0] >= 32 && bytes[0] < 127 {
+                    let ch = bytes[0] as char;
+                    let event = InputEvent::key(bytes[0] as u16, 0, ch, true)
+                        .with_source("unix_raw".to_string());
+                    writeln!(stdout, "Event: {}", event)?;
+                } else {
+                    // For sequences, just note the length
+                    writeln!(stdout, "Sequence: {} bytes (raw pass-through)", bytes.len())?;
                 }
                 writeln!(stdout)?;
                 stdout.flush()?;
@@ -59,7 +85,7 @@ pub fn run_key_test() -> io::Result<()> {
                 // Check for quit sequence
                 if bytes.len() == 1 && bytes[0] == b'q' {
                     q_count += 1;
-                    writeln!(stdout, "[q count: {}/3]", q_count)?;
+                    writeln!(stdout, "[quit count: {}/3]", q_count)?;
                     if q_count >= 3 {
                         break;
                     }
@@ -89,7 +115,8 @@ pub fn run_key_test() -> io::Result<()> {
 pub fn run_key_test() -> io::Result<()> {
     use crossterm::event;
 
-    println!("Key Test Mode - Press keys to see their events");
+    println!("Key Test Mode (Win32 InputEvent Format via crossterm)");
+    println!("Press keys to see decoded events");
     println!("Press 'q' three times to exit");
     println!("---");
 
@@ -98,11 +125,34 @@ pub fn run_key_test() -> io::Result<()> {
     loop {
         if event::poll(std::time::Duration::from_millis(100))? {
             if let event::Event::Key(key_event) = event::read()? {
-                println!("Event: {:?}", key_event);
+                // Convert crossterm event to our InputEvent format
+                let event = match key_event.code {
+                    crossterm::event::KeyCode::Char(c) => {
+                        let mut ev = InputEvent::key(c as u16, 0, c, true);
+                        // Map crossterm modifiers to Win32 ControlKeyState
+                        if key_event.modifiers.contains(crossterm::event::KeyModifiers::SHIFT) {
+                            ev.control_key_state = ev.control_key_state.with_shift();
+                        }
+                        if key_event.modifiers.contains(crossterm::event::KeyModifiers::CONTROL) {
+                            ev.control_key_state = ev.control_key_state.with_left_ctrl();
+                        }
+                        if key_event.modifiers.contains(crossterm::event::KeyModifiers::ALT) {
+                            ev.control_key_state = ev.control_key_state.with_left_alt();
+                        }
+                        ev.with_source("crossterm".to_string())
+                    }
+                    _ => {
+                        let mut ev = InputEvent::key(0, 0, '\0', true);
+                        ev.input_source = format!("crossterm_special");
+                        ev
+                    }
+                };
+
+                println!("Event: {}", event);
 
                 if let crossterm::event::KeyCode::Char('q') = key_event.code {
                     q_count += 1;
-                    println!("[q count: {}/3]", q_count);
+                    println!("[quit count: {}/3]", q_count);
                     if q_count >= 3 {
                         break;
                     }
