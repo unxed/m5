@@ -155,7 +155,7 @@ impl MouseEventFlags {
 ///
 /// This structure matches the Win32 INPUT_RECORD format used by far2l and f4,
 /// allowing seamless integration with existing keymap and input handling code.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct InputEvent {
     pub event_type: EventType,
 
@@ -341,10 +341,13 @@ impl fmt::Display for InputEvent {
 pub mod vk {
     pub const BACK: u16 = 0x08;
     pub const TAB: u16 = 0x09;
+    pub const CLEAR: u16 = 0x0C;
     pub const RETURN: u16 = 0x0D;
     pub const SHIFT: u16 = 0x10;
     pub const CONTROL: u16 = 0x11;
     pub const MENU: u16 = 0x12; // Alt
+    pub const PAUSE: u16 = 0x13;
+    pub const CAPITAL: u16 = 0x14; // Caps Lock
     pub const ESCAPE: u16 = 0x1B;
     pub const SPACE: u16 = 0x20;
     pub const PRIOR: u16 = 0x21; // Page Up
@@ -355,14 +358,48 @@ pub mod vk {
     pub const UP: u16 = 0x26;
     pub const RIGHT: u16 = 0x27;
     pub const DOWN: u16 = 0x28;
+    pub const SNAPSHOT: u16 = 0x2C; // Print Screen
     pub const INSERT: u16 = 0x2D;
     pub const DELETE: u16 = 0x2E;
     pub const A: u16 = 0x41;
     pub const Z: u16 = 0x5A;
+    pub const LWIN: u16 = 0x5B;
+    pub const RWIN: u16 = 0x5C;
+    pub const APPS: u16 = 0x5D;
+    pub const NUMPAD0: u16 = 0x60;
+    pub const NUMPAD9: u16 = 0x69;
+    pub const MULTIPLY: u16 = 0x6A;
+    pub const ADD: u16 = 0x6B;
+    pub const SEPARATOR: u16 = 0x6C;
+    pub const SUBTRACT: u16 = 0x6D;
+    pub const DECIMAL: u16 = 0x6E;
+    pub const DIVIDE: u16 = 0x6F;
     pub const F1: u16 = 0x70;
     pub const F4: u16 = 0x73;
     pub const F12: u16 = 0x7B;
     pub const F24: u16 = 0x87;
+    pub const NUMLOCK: u16 = 0x90;
+    pub const SCROLL: u16 = 0x91;
+    pub const LSHIFT: u16 = 0xA0;
+    pub const RSHIFT: u16 = 0xA1;
+    pub const LCONTROL: u16 = 0xA2;
+    pub const RCONTROL: u16 = 0xA3;
+    pub const LMENU: u16 = 0xA4;
+    pub const RMENU: u16 = 0xA5;
+    pub const OEM_1: u16 = 0xBA; // ; :
+    pub const OEM_PLUS: u16 = 0xBB; // = +
+    pub const OEM_COMMA: u16 = 0xBC; // , <
+    pub const OEM_MINUS: u16 = 0xBD; // - _
+    pub const OEM_PERIOD: u16 = 0xBE; // . >
+    pub const OEM_2: u16 = 0xBF; // / ?
+    pub const OEM_3: u16 = 0xC0; // ` ~
+    pub const OEM_4: u16 = 0xDB; // [ {
+    pub const OEM_5: u16 = 0xDC; // \ |
+    pub const OEM_6: u16 = 0xDD; // ] }
+    pub const OEM_7: u16 = 0xDE; // ' "
+    pub const OEM_102: u16 = 0xE2;
+    /// Key that has no Win32 virtual key code.
+    pub const UNASSIGNED: u16 = 0xFF;
 }
 
 /// Virtual key code for a printable ASCII character: letters map to the uppercase
@@ -443,6 +480,41 @@ mod tests {
         assert_eq!(vk::F4, 0x73);
         assert_eq!(vk::F12, 0x7B);
         assert_eq!(vk::F24, vk::F1 + 23);
+    }
+
+    #[test]
+    fn vk_extended_constants_match_win32() {
+        assert_eq!(vk::CLEAR, 0x0C);
+        assert_eq!(vk::PAUSE, 0x13);
+        assert_eq!(vk::CAPITAL, 0x14);
+        assert_eq!(vk::SNAPSHOT, 0x2C);
+        assert_eq!(vk::LWIN, 0x5B);
+        assert_eq!(vk::RWIN, 0x5C);
+        assert_eq!(vk::APPS, 0x5D);
+        assert_eq!(vk::NUMPAD0, 0x60);
+        assert_eq!(vk::NUMPAD9, 0x69);
+        assert_eq!(vk::MULTIPLY, 0x6A);
+        assert_eq!(vk::ADD, 0x6B);
+        assert_eq!(vk::SEPARATOR, 0x6C);
+        assert_eq!(vk::SUBTRACT, 0x6D);
+        assert_eq!(vk::DECIMAL, 0x6E);
+        assert_eq!(vk::DIVIDE, 0x6F);
+        assert_eq!(vk::NUMLOCK, 0x90);
+        assert_eq!(vk::SCROLL, 0x91);
+        assert_eq!(vk::LSHIFT, 0xA0);
+        assert_eq!(vk::RMENU, 0xA5);
+        assert_eq!(vk::OEM_1, 0xBA);
+        assert_eq!(vk::OEM_PLUS, 0xBB);
+        assert_eq!(vk::OEM_COMMA, 0xBC);
+        assert_eq!(vk::OEM_MINUS, 0xBD);
+        assert_eq!(vk::OEM_PERIOD, 0xBE);
+        assert_eq!(vk::OEM_2, 0xBF);
+        assert_eq!(vk::OEM_3, 0xC0);
+        assert_eq!(vk::OEM_4, 0xDB);
+        assert_eq!(vk::OEM_5, 0xDC);
+        assert_eq!(vk::OEM_6, 0xDD);
+        assert_eq!(vk::OEM_7, 0xDE);
+        assert_eq!(vk::OEM_102, 0xE2);
     }
 
     #[test]

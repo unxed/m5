@@ -7,10 +7,15 @@
 CI на main был красным начиная с коммита T-03 (fmt, clippy, test, deny, Android — все падали).
 Починено в PR #1 (fmt, clippy, test x3 ОС, deny licenses, Android cross-build с NDK-линкером — зелёные). Cargo.lock закоммичен (бинарный workspace), тесты идут с `--locked`.
 
-Следующая задача: **T-04** — декодеры ввода на базе `InputEvent` (Rust, crates/m5-term). **Не сделана.**
+Идёт **T-04..T-06** — декодеры ввода на базе `InputEvent` (Rust, crates/m5-term/src/decode), по одному протоколу на PR.
+Разобрано (код и юнит-тесты в репозитории; тесты запускаются только в CI): обычные символы UTF-8 и управляющие байты,
+Alt как префикс ESC, клавиши xterm/VT (CSI и SS3 с модификаторами, F1..F20, навигация, keypad, modifyOtherKeys,
+консоль Linux, rxvt). Остальное — kitty, win32-input-mode, far2l APC, мышь SGR, bracketed paste, фокус — ещё не сделано.
+Интерактивная проверка на реальных терминалах этим работам не проводилась.
 
 ## История
 
+- **T-04** (в работе, шаг 1). `Decoder` (`feed` / `flush_timeout`) и разбор легаси-клавиш xterm. Решения — D-11.
 - **T-03** (частично). Реализовано: тип `InputEvent`, `ControlKeyState`, `EventType`, константы VK,
   юнит-тесты типов (m5-term/src/key.rs), режим `m5 --key-test` (m5-term/src/key_test.rs).
   Не сделано: проверка на реальных терминалах (интерактивно), проверка crossterm на APC/неизвестные
