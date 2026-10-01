@@ -95,7 +95,10 @@ fn text_of_ctrl_combinations_is_ignored() {
     assert_eq!(one(b"\x1b[97;5;97u"), (0x41, '\u{1}', CTRL, true));
     assert_eq!(one(b"\x1b[122;5;122u"), (0x5A, '\u{1a}', CTRL, true));
     assert_eq!(one(b"\x1b[97;7;97u"), (0x41, '\u{1}', CTRL | ALT, true));
-    assert_eq!(one(b"\x1b[121:89;6;89u"), (0x59, '\u{19}', CTRL | SHIFT, true));
+    assert_eq!(
+        one(b"\x1b[121:89;6;89u"),
+        (0x59, '\u{19}', CTRL | SHIFT, true)
+    );
     // The same events without the text give the same result.
     for (with_text, without) in [
         (&b"\x1b[91;5;91u"[..], &b"\x1b[91;5u"[..]),
