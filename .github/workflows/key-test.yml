@@ -68,10 +68,16 @@ jobs:
           sleep 2
           M5="$PWD/target/release/m5"
           TS="$OUT/typescript.raw"
-          # m5 stdout goes through tee to get a text log (script(1) swallowed the input in CI).
-          # The mode sequence is written to the terminal after m5 has switched
-          # to the alternate screen (kitty keyboard flags are per screen).
-          INNER="( sleep 3; printf '%b' \"\$MODE_SEQ\" > /dev/tty ) & exec $M5 --key-test | tee $TS"
+          # m5 stdout goes through tee to get a text log (script(1) swallowed the input in CI);
+          # every output line is also stamped with the time, to pair it with the key sent.
+          # The mode sequence is written to the terminal after m5 has switched to the
+          # alternate screen (kitty keyboard flags are per screen).
+          cat > "$OUT/inner.sh" <<'INNER_EOF'
+          ( sleep 3; printf '%b' "$MODE_SEQ" > /dev/tty ) &
+          "$M5" --key-test | tee >(while IFS= read -r l; do printf '%s %s\n' "$(date +%s.%N)" "$l"; done > "$TS.ts")
+          INNER_EOF
+          export M5 TS
+          INNER="bash $OUT/inner.sh"
           export MODE_SEQ
           case "$TERM_NAME" in
             xterm)   xterm -geometry 110x48 -fa Monospace -fs 10 -e bash -c "$INNER" & ;;
@@ -94,12 +100,12 @@ jobs:
           printf 'pasted text from clipboard' | xclip -selection clipboard
           : > "$OUT/keys.txt"
           send() { # label, xdotool key spec
-            echo "$1|$2" >> "$OUT/keys.txt"
+            echo "$(date +%s.%N)|$1|$2" >> "$OUT/keys.txt"
             xdotool key --delay 40 "$2" >>"$OUT/xdotool.log" 2>&1 || true
             sleep 0.4
           }
           sendtype() { # label, text
-            echo "$1|type $2" >> "$OUT/keys.txt"
+            echo "$(date +%s.%N)|$1|type $2" >> "$OUT/keys.txt"
             xdotool type --delay 40 "$2" >>"$OUT/xdotool.log" 2>&1 || true
             sleep 0.4
           }
@@ -135,12 +141,17 @@ jobs:
           sleep 2
           shot 10-exit
           kill "$TERM_PID" 2>/dev/null || true
-          # Plain-text log: strip escapes and carriage returns from the typescript
+          # Plain-text log: strip escapes and carriage returns from the output
           sed -e 's/\x1b\[[0-9;?<>=]*[A-Za-z]//g' -e 's/\x1b[()][0-9A-Za-z]//g' -e 's/\r//g' "$TS" > "$OUT/typescript.txt" || true
-          grep -a 'Raw:' "$OUT/typescript.txt" > "$OUT/raw-lines.txt" || true
-          { echo "== $TERM_NAME / $MODE_NAME =="; echo "sent keys: $(wc -l < "$OUT/keys.txt"), Raw lines from m5: $(wc -l < "$OUT/raw-lines.txt")";
-            echo; echo "-- keys vs Raw lines (paired by order, may drift if counts differ) --";
-            paste -d'\t' "$OUT/keys.txt" "$OUT/raw-lines.txt"; } | tee "$OUT/summary.txt" >> "$GITHUB_STEP_SUMMARY"
+          # Pair every "Raw:" line printed by m5 with the last key sent before it
+          { sed 's/^\([0-9.]*\)|\(.*\)$/\1 K \2/' "$OUT/keys.txt"
+            sed -e 's/\x1b\[[0-9;?<>=]*[A-Za-z]//g' -e 's/\r//g' "$TS.ts" | grep -a ' Raw:' | sed 's/^\([0-9.]*\) \(.*\)$/\1 R \2/'
+          } | sort -s -n -k1,1 | awk '
+            $2=="K" { if (lbl!="") print lbl "\t" (n? out : "(nothing arrived)"); split($0,a," K "); lbl=a[2]; out=""; n=0; next }
+            $2=="R" { sub(/^[0-9.]+ R /,""); out=out (n? "  ;;  " : "") $0; n++ }
+            END { if (lbl!="") print lbl "\t" (n? out : "(nothing arrived)") }' > "$OUT/paired.txt"
+          { echo "== $TERM_NAME / $MODE_NAME =="; echo "keys sent: $(wc -l < "$OUT/keys.txt"), Raw lines from m5: $(grep -ac 'Raw:' "$TS" || true)";
+            echo; echo "-- key | what m5 printed --"; cat "$OUT/paired.txt"; } | tee "$OUT/summary.txt" >> "$GITHUB_STEP_SUMMARY"
           echo "--- typescript (cleaned) ---"; head -c 20000 "$OUT/typescript.txt" || true
       - uses: actions/upload-artifact@v4
         if: always()
