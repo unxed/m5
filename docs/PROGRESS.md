@@ -5,7 +5,7 @@
 ## Сейчас
 
 CI на main был красным начиная с коммита T-03 (fmt, clippy, test, deny, Android — все падали).
-Починка — ветка `fix/ci-green` (см. историю). Зелёный прогон на main фиксируется ниже после слияния.
+Починено в PR #1 (fmt, clippy, test x3 ОС, deny licenses, Android cross-build с NDK-линкером — зелёные). Cargo.lock закоммичен (бинарный workspace), тесты идут с `--locked`.
 
 Следующая задача: **T-04** — декодеры ввода на базе `InputEvent` (Rust, crates/m5-term). **Не сделана.**
 

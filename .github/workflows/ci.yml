@@ -25,13 +25,7 @@ jobs:
           toolchain: ${{ matrix.rust }}
       - uses: Swatinem/rust-cache@v2
       - name: Run tests
-        run: cargo test --verbose --all
-      - name: TEMP lockfile artifact
-        if: matrix.os == 'ubuntu-latest'
-        uses: actions/upload-artifact@v4
-        with:
-          name: Cargo.lock
-          path: Cargo.lock
+        run: cargo test --locked --verbose --all
 
   fmt:
     name: Rustfmt
