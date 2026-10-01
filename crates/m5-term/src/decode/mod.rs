@@ -6,7 +6,8 @@
 //! with [`Decoder::flush_timeout`], which is how a lone `Esc` key press is recognized.
 //!
 //! Supported so far (the kitty keyboard protocol is in [`kitty`], win32-input-mode in
-//! [`win32`], the far2l terminal extensions in [`far2l`], SGR mouse reports in [`mouse`]): plain characters (UTF-8) and control bytes, `Alt` as an `ESC` prefix,
+//! [`win32`], the far2l terminal extensions in [`far2l`], SGR mouse reports in [`mouse`],
+//! bracketed paste in [`paste`]): plain characters (UTF-8) and control bytes, `Alt` as an `ESC` prefix,
 //! and the keys of xterm-style terminals (CSI and SS3 sequences with modifiers).
 //! Terminal replies that are not input (cursor position, device attributes, ...) and
 //! unrelated string sequences (APC) are consumed and dropped.
@@ -20,6 +21,7 @@ mod keys;
 pub mod kitty;
 mod legacy;
 pub mod mouse;
+pub mod paste;
 pub mod win32;
 
 #[cfg(test)]
@@ -50,6 +52,8 @@ struct State {
     high_surrogate: Option<u16>,
     /// Mouse buttons held down, as Win32 button state bits.
     mouse_buttons: u32,
+    /// Between `CSI 200 ~` and `CSI 201 ~`.
+    in_paste: bool,
 }
 
 /// Outcome of parsing at the start of the buffer.
@@ -91,7 +95,7 @@ impl Decoder {
             let used = match parse(rest, out, &mut self.state) {
                 Parse::Done(n) => n,
                 Parse::Incomplete if flush || rest.len() > MAX_PENDING => {
-                    resolve_incomplete(rest, out)
+                    resolve_incomplete(rest, out, self.state.in_paste)
                 }
                 Parse::Incomplete => break,
             };
@@ -105,6 +109,9 @@ impl Decoder {
 
 /// Parses one unit at the start of `buf` (not empty).
 fn parse(buf: &[u8], out: &mut Vec<InputEvent>, st: &mut State) -> Parse {
+    if st.in_paste {
+        return parse_paste(buf, out, st);
+    }
     if buf[0] == ESC {
         return parse_escape(buf, out, st);
     }
@@ -122,11 +129,16 @@ fn parse(buf: &[u8], out: &mut Vec<InputEvent>, st: &mut State) -> Parse {
 }
 
 /// Gives up waiting for the rest of an incomplete unit; returns the bytes consumed.
-fn resolve_incomplete(rest: &[u8], out: &mut Vec<InputEvent>) -> usize {
+fn resolve_incomplete(rest: &[u8], out: &mut Vec<InputEvent>, in_paste: bool) -> usize {
     if rest[0] != ESC {
         // The end of the input cuts a UTF-8 sequence short.
-        out.push(char_event('\u{FFFD}'));
+        out.push(replacement_event(in_paste));
         return rest.len();
+    }
+    if in_paste {
+        // Part of the end marker that never completed: plain text.
+        out.push(paste::text_event('\u{1b}'));
+        return 1;
     }
     if rest.len() == 2 && rest[1].is_ascii() && rest[1] != ESC {
         // `ESC [`, `ESC O` and `ESC _` alone are Alt+[, Alt+O and Alt+_.
@@ -135,6 +147,41 @@ fn resolve_incomplete(rest: &[u8], out: &mut Vec<InputEvent>) -> usize {
     }
     out.push(char_event('\u{1b}'));
     1
+}
+
+fn replacement_event(in_paste: bool) -> InputEvent {
+    if in_paste {
+        paste::text_event('\u{FFFD}')
+    } else {
+        char_event('\u{FFFD}')
+    }
+}
+
+/// Parses pasted text: everything up to the end marker is characters.
+fn parse_paste(buf: &[u8], out: &mut Vec<InputEvent>, st: &mut State) -> Parse {
+    if buf[0] == ESC {
+        if buf.starts_with(paste::END) {
+            out.push(paste::marker(false));
+            st.in_paste = false;
+            return Parse::Done(paste::END.len());
+        }
+        if paste::END.starts_with(buf) {
+            return Parse::Incomplete;
+        }
+        out.push(paste::text_event('\u{1b}'));
+        return Parse::Done(1);
+    }
+    match decode_char(buf) {
+        Utf8::Char(c, n) => {
+            out.push(paste::text_event(c));
+            Parse::Done(n)
+        }
+        Utf8::Invalid => {
+            out.push(replacement_event(true));
+            Parse::Done(1)
+        }
+        Utf8::Incomplete => Parse::Incomplete,
+    }
 }
 
 /// Parses a unit that starts with `ESC`.
@@ -249,7 +296,22 @@ fn parse_csi(buf: &[u8], out: &mut Vec<InputEvent>, st: &mut State) -> Parse {
     }
 }
 
+/// `CSI 200 ~` is the start of a paste, `CSI 201 ~` the end.
+fn paste_marker(seq: &Csi) -> Option<bool> {
+    let plain = seq.private.is_none() && !seq.has_intermediate && seq.final_byte == b'~';
+    match (plain, seq.params.len(), seq.param(0)) {
+        (true, 1, Some(200)) => Some(true),
+        (true, 1, Some(201)) => Some(false),
+        _ => None,
+    }
+}
+
 fn dispatch_csi(seq: &Csi, out: &mut Vec<InputEvent>, st: &mut State) {
+    if let Some(start) = paste_marker(seq) {
+        out.push(paste::marker(start));
+        st.in_paste = start;
+        return;
+    }
     if seq.private == Some(b'<') && !seq.has_intermediate {
         mouse::decode_sgr(seq, out, &mut st.mouse_buttons);
         return;
