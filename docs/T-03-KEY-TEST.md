@@ -22,15 +22,15 @@ Workflow `.github/workflows/key-test.yml`: на раннере `ubuntu-24.04` п
 
 Вывод m5 для лога идёт через `tee`: с `script(1)` ввод до m5 не доходил (все 76 нажатий пропали), без него — доходит.
 
-## Что делает сам m5 --key-test (по скриншотам)
+## Что делает сам m5 --key-test
 
-- Вывод идёт «лесенкой»: строки печатаются `writeln!` с одним LF в raw-режиме, возврата каретки нет
-  (скриншоты `04-fkeys.png` во всех прогонах).
-- Для всего, кроме одиночного печатного ASCII-байта, печатает только «Raw:» и «Sequence: N bytes (raw pass-through)»,
-  разбора в `InputEvent` нет. Для UTF-8 (`я`: `d1 8f`) и вставки это тоже только байты.
-- Выход «q q q» проверяет, что прочитанный блок равен ровно байту `q`. В режиме kitty-31 `q` приходит как
-  `ESC[113;;113u` (+ событие отпускания `ESC[113;1:3u`), и после трёх `q` m5 остаётся запущенным (`10-exit.png`
-  прогона kitty-31 показывает продолжающийся вывод).
+Прогоны выше сделаны со старой версией `--key-test`; у неё были дефекты (скриншоты `04-fkeys.png`, `10-exit.png`):
+вывод шёл «лесенкой» (строки кончались одним LF в raw-режиме), для всего, кроме одиночного печатного ASCII-байта,
+печатались только «Raw:» и «Sequence: N bytes», а выход по `q q q` сравнивал блок с байтом `q` и в режиме kitty-31
+(`q` = `ESC[113;;113u`) не срабатывал. Они исправлены (PR «возврат каретки… и выход по трём q», PR «показ
+разобранных InputEvent»): строки кончаются CR LF, после «Raw:» печатаются строки «Event:» с событиями `Decoder`,
+выход считает нажатия `q` по разобранным событиям. В прогоне 36838538559 (15 заданий) в каждом, включая kitty-31,
+kitty-1 и WezTerm с kitty, строка `exit.txt` — «m5 exit after q q q: yes (terminal closed)».
 
 ## Что присылают терминалы без включения режимов (legacy)
 
@@ -96,6 +96,64 @@ Shift+Enter `ESC[27;2;13~`, Ctrl+Space `ESC[27;5;32~`, Ctrl+[ `ESC[27;5;91~`, Al
 
 xterm, kitty и WezTerm одинаково: Shift+Insert приходит одним блоком `ESC[200~pasted text from clipboard ESC[201~`
 (прогон 36833927593, строка Shift+Insert в `summary.txt`).
+
+## Сверка разобранных InputEvent с ожидаемыми (прогон 36838538559)
+
+Прогон: https://github.com/unxed/m5/actions/runs/36838538559 (15 заданий: xterm legacy/modifyOtherKeys/bracketed;
+kitty legacy/kitty-1/kitty-31/win32-9001/bracketed; WezTerm legacy/modifyOtherKeys/kitty-31/kitty-31-cfg/win32-9001/
+win32-9001-cfg/bracketed). `.github/key-test/compare.py` сопоставляет по времени каждую клавишу с первым событием
+нажатия (кроме самих модификаторов) в выводе m5 и сверяет VK, символ и Shift/Alt/Ctrl с ожидаемыми (как дала бы консоль
+Windows; `?` в таблице — не проверялось). Итог по заданиям (строка `compare:` в `compare.txt` артефакта; всего 73 проверки, Ctrl+Return в списке дважды):
+
+| терминал / режим | совпало | расхождений | не дошло |
+|---|---|---|---|
+| xterm legacy, bracketed | 58 | 14 | 1 |
+| xterm modifyOtherKeys | 70 | 2 | 1 |
+| kitty legacy, bracketed, win32-9001 | 65 | 6 | 2 |
+| kitty kitty-1 (`ESC[>1u`) | 70 | 1 | 2 |
+| kitty kitty-31 | 70 | 3 | 0 |
+| WezTerm legacy, bracketed, kitty-31 (без настройки), win32-9001, win32-9001-cfg | 64 | 7 | 2 |
+| WezTerm modifyOtherKeys | 70 | 1 | 2 |
+| WezTerm kitty-31-cfg | 70 | 3 | 0 |
+
+Что совпало: буквы, цифры, знаки, `я`, Shift+буква, Ctrl+буква, F1-F12 (в том числе с Shift/Ctrl/Alt), стрелки,
+Home/End/PgUp/PgDn/Insert/Delete с Shift/Ctrl/Alt, Enter, Esc, Tab, Shift+Tab, BackSpace — декодер дал ожидаемые VK,
+символ и модификаторы в тех режимах, где терминал присылает достаточно информации (см. ниже).
+Вставка (Shift+Insert): во всех 15 заданиях текст `pasted text from clipboard` пришёл как последовательность событий
+клавиш; в bracketed-заданиях (xterm, kitty, WezTerm) обрамлён ровно одной парой `Paste{START}` / `Paste{END}`, в остальных
+режимах маркеров нет.
+
+Расхождения, причина которых в терминале (в событии нет данных, из которых их можно восстановить):
+- legacy (xterm, kitty, WezTerm): Ctrl+Enter, Shift+Enter, Ctrl+BackSpace (`08`), Ctrl+[ (`1b`) приходят теми же байтами,
+  что Enter, BackSpace, Esc; Ctrl+Shift+y приходит как `19`, то есть Shift теряется; Ctrl+Shift+1 в xterm приходит как `21`
+  (Shift без Ctrl). `1f` (Ctrl+/) декодер показывает как VK_OEM_MINUS с Ctrl (тот же байт даёт Ctrl+-, Ctrl+_).
+- xterm без настройки: Alt+буква приходит как буква с выставленным старшим битом в UTF-8 (`c3 a1` для Alt+a), декодер
+  видит символ `á` без Alt и без VK (ту же последовательность даёт набор `á`). Alt+Return в xterm и WezTerm до m5 не дошло
+  ни в одном режиме (в kitty legacy пришло `1b 0d`).
+- kitty и WezTerm: Ctrl+Shift+1 и Ctrl+Shift+F5 (kitty) и Ctrl+Shift+1 (WezTerm) не дошли или пришли только события
+  модификаторов; в kitty-31 в `compare.txt` у них «no key press event», в сырых байтах — только Ctrl/Shift
+  (`ESC[57442;5u`, `ESC[57441;6u`) и их отпускание. Предположение: сочетания заняты самим терминалом.
+- WezTerm kitty-31-cfg: Alt+Return — пришли нажатие/отпускание Alt и отпускание Enter (`ESC[13;1:3u`), нажатия Enter нет.
+  Предположение: Alt+Enter занято терминалом.
+- modifyOtherKeys (xterm и WezTerm) и kitty-протокол: Ctrl+/ приходит как `ESC[27;5;47~` / `ESC[47;5u`; декодер даёт символ
+  `/` с Ctrl (для Ctrl+буква он даёт управляющий символ). Это решение декодера, не потеря; для keymap достаточно VK и Ctrl.
+
+Расхождение декодера, найденное этим прогоном и исправленное (PR «текст при зажатом Ctrl не подменяет управляющий символ»):
+WezTerm с `enable_kitty_keyboard=true` и `ESC[>31u` присылает Ctrl+a как `ESC[97;5;97u` (с текстом `a`; kitty шлёт `ESC[97;5u`),
+а декодер ставил символ `a` вместо `\x01` (Ctrl+a, Ctrl+z, Ctrl+[, Ctrl+Shift+y, Ctrl+Alt+a). В прогоне 36837731856 это давало
+8 расхождений, в 36838538559 (после исправления) осталось 3 — все три перечислены выше. Регрессионные тесты —
+`text_of_ctrl_combinations_is_ignored` в `crates/m5-term/src/decode/tests/kitty_cases.rs` на захваченных байтах.
+
+Другие наблюдения:
+- WezTerm (nightly, прогон 36838538559) без настройки на `ESC[>31u` не отвечает kitty-последовательностями; с
+  `--config enable_kitty_keyboard=true` отвечает (`ESC[97;5;97u` и т.д.). Нажатие Ctrl он отправляет как `ESC[57442;1u`
+  (поле модификаторов 1), kitty — `ESC[57442;5u`; декодер обрабатывает оба.
+- WezTerm принимает modifyOtherKeys (`ESC[>4;2m`): Ctrl+a приходит как `ESC[27;5;97~`, результат такой же, как в xterm
+  (70 совпадений из 73, расхождения — Alt+Return и Ctrl+Shift+1 не дошли, Ctrl+/ как описано выше).
+- win32-input-mode: ни в kitty, ни в WezTerm (в том числе с `--config allow_win32_input_mode=true`) после `ESC[?9001h`
+  ни одной последовательности `ESC[Vk;Sc;Uc;Kd;Cs;Rc_` не пришло (вывод идентичен legacy, 64 / 65 совпадений). Терминала, который
+  в этих прогонах реально шлёт win32-input-mode, нет; декодер win32 проверен только юнит-тестами.
+- far2l APC: по-прежнему не проверено (нет терминала, который его шлёт).
 
 ## Чего прогоны не покрывают
 
