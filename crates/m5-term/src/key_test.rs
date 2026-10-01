@@ -139,7 +139,10 @@ pub fn run_key_test() -> io::Result<()> {
     let mut stdout = io::stdout();
 
     line(&mut stdout, "Key Test Mode (Win32 InputEvent Format)")?;
-    line(&mut stdout, "Press keys to see raw bytes and decoded events")?;
+    line(
+        &mut stdout,
+        "Press keys to see raw bytes and decoded events",
+    )?;
     line(&mut stdout, "Press 'q' three times to exit")?;
     line(
         &mut stdout,
