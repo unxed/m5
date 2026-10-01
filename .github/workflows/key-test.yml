@@ -82,7 +82,9 @@ jobs:
           xwininfo -root -tree > "$OUT/windows.txt" 2>&1 || true
           WID=$(xdotool search --onlyvisible --name . 2>/dev/null | tail -1 || true)
           echo "window: $WID" | tee "$OUT/window.txt"
-          [ -n "$WID" ] && xdotool windowfocus "$WID" || true
+          # No window manager: X focus follows the pointer, so put it inside the window.
+          xdotool mousemove 300 300
+          sleep 1
           import -window root "$OUT/00-start.png" || true
           printf 'pasted text from clipboard' | xclip -selection primary
           printf 'pasted text from clipboard' | xclip -selection clipboard
