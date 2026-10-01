@@ -4,8 +4,8 @@
 //! and displays both raw bytes and decoded InputEvent structures using
 //! Win32-compatible format (like far2l and f4).
 
+use super::key::{InputEvent, vk_from_ascii};
 use std::io::{self, Write};
-use super::key::{InputEvent, EventType, ControlKeyState};
 
 /// Run interactive key test mode.
 ///
@@ -15,7 +15,7 @@ use super::key::{InputEvent, EventType, ControlKeyState};
 pub fn run_key_test() -> io::Result<()> {
     use crossterm::{
         execute,
-        terminal::{enable_raw_mode, disable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
+        terminal::{EnterAlternateScreen, LeaveAlternateScreen, disable_raw_mode, enable_raw_mode},
     };
 
     // Enable raw mode
@@ -27,8 +27,14 @@ pub fn run_key_test() -> io::Result<()> {
     writeln!(stdout, "Key Test Mode (Win32 InputEvent Format)")?;
     writeln!(stdout, "Press keys to see raw bytes and decoded events")?;
     writeln!(stdout, "Press 'q' three times to exit")?;
-    writeln!(stdout, "This validates that all sequences are passed through correctly")?;
-    writeln!(stdout, "including APC far2l, kitty protocol, and ANSI sequences")?;
+    writeln!(
+        stdout,
+        "This validates that all sequences are passed through correctly"
+    )?;
+    writeln!(
+        stdout,
+        "including APC far2l, kitty protocol, and ANSI sequences"
+    )?;
     writeln!(stdout, "---")?;
     stdout.flush()?;
 
@@ -39,7 +45,8 @@ pub fn run_key_test() -> io::Result<()> {
     let mut buffer = [0u8; 1024];
     loop {
         match io::stdin().read(&mut buffer) {
-            Ok(n) if n > 0 => {
+            Ok(0) => break,
+            Ok(n) => {
                 let bytes = &buffer[..n];
 
                 // Display raw bytes in hex
@@ -54,7 +61,7 @@ pub fn run_key_test() -> io::Result<()> {
                 // Display ASCII representation
                 write!(stdout, " | Chars: ")?;
                 for &b in bytes.iter() {
-                    if b >= 32 && b < 127 {
+                    if (32..127).contains(&b) {
                         write!(stdout, "{}", b as char)?;
                     } else if b == b'\x1b' {
                         write!(stdout, "ESC")?;
@@ -70,9 +77,9 @@ pub fn run_key_test() -> io::Result<()> {
 
                 // Display as Win32-style InputEvent
                 // For simple case: if it's a printable ASCII, create a key event
-                if bytes.len() == 1 && bytes[0] >= 32 && bytes[0] < 127 {
+                if bytes.len() == 1 && (32..127).contains(&bytes[0]) {
                     let ch = bytes[0] as char;
-                    let event = InputEvent::key(bytes[0] as u16, 0, ch, true)
+                    let event = InputEvent::key(vk_from_ascii(ch), 0, ch, true)
                         .with_source("unix_raw".to_string());
                     writeln!(stdout, "Event: {}", event)?;
                 } else {
@@ -93,7 +100,6 @@ pub fn run_key_test() -> io::Result<()> {
                     q_count = 0;
                 }
             }
-            Ok(0) => break,
             Err(e) if e.kind() == io::ErrorKind::Interrupted => continue,
             Err(e) => {
                 disable_raw_mode()?;
@@ -123,42 +129,51 @@ pub fn run_key_test() -> io::Result<()> {
     let mut q_count = 0;
 
     loop {
-        if event::poll(std::time::Duration::from_millis(100))? {
-            if let event::Event::Key(key_event) = event::read()? {
-                // Convert crossterm event to our InputEvent format
-                let event = match key_event.code {
-                    crossterm::event::KeyCode::Char(c) => {
-                        let mut ev = InputEvent::key(c as u16, 0, c, true);
-                        // Map crossterm modifiers to Win32 ControlKeyState
-                        if key_event.modifiers.contains(crossterm::event::KeyModifiers::SHIFT) {
-                            ev.control_key_state = ev.control_key_state.with_shift();
-                        }
-                        if key_event.modifiers.contains(crossterm::event::KeyModifiers::CONTROL) {
-                            ev.control_key_state = ev.control_key_state.with_left_ctrl();
-                        }
-                        if key_event.modifiers.contains(crossterm::event::KeyModifiers::ALT) {
-                            ev.control_key_state = ev.control_key_state.with_left_alt();
-                        }
-                        ev.with_source("crossterm".to_string())
+        if event::poll(std::time::Duration::from_millis(100))?
+            && let event::Event::Key(key_event) = event::read()?
+        {
+            // Convert crossterm event to our InputEvent format
+            let event = match key_event.code {
+                crossterm::event::KeyCode::Char(c) => {
+                    let mut ev = InputEvent::key(vk_from_ascii(c), 0, c, true);
+                    // Map crossterm modifiers to Win32 ControlKeyState
+                    if key_event
+                        .modifiers
+                        .contains(crossterm::event::KeyModifiers::SHIFT)
+                    {
+                        ev.control_key_state = ev.control_key_state.with_shift();
                     }
-                    _ => {
-                        let mut ev = InputEvent::key(0, 0, '\0', true);
-                        ev.input_source = format!("crossterm_special");
-                        ev
+                    if key_event
+                        .modifiers
+                        .contains(crossterm::event::KeyModifiers::CONTROL)
+                    {
+                        ev.control_key_state = ev.control_key_state.with_left_ctrl();
                     }
-                };
-
-                println!("Event: {}", event);
-
-                if let crossterm::event::KeyCode::Char('q') = key_event.code {
-                    q_count += 1;
-                    println!("[quit count: {}/3]", q_count);
-                    if q_count >= 3 {
-                        break;
+                    if key_event
+                        .modifiers
+                        .contains(crossterm::event::KeyModifiers::ALT)
+                    {
+                        ev.control_key_state = ev.control_key_state.with_left_alt();
                     }
-                } else {
-                    q_count = 0;
+                    ev.with_source("crossterm".to_string())
                 }
+                _ => {
+                    let mut ev = InputEvent::key(0, 0, '\0', true);
+                    ev.input_source = "crossterm_special".to_string();
+                    ev
+                }
+            };
+
+            println!("Event: {}", event);
+
+            if let crossterm::event::KeyCode::Char('q') = key_event.code {
+                q_count += 1;
+                println!("[quit count: {}/3]", q_count);
+                if q_count >= 3 {
+                    break;
+                }
+            } else {
+                q_count = 0;
             }
         }
     }

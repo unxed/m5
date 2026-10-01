@@ -98,7 +98,7 @@ Info/QuickView/Tree панели, поиск файлов (Alt-F7), hotlist.
 |----|---------|--------|---------------|
 | D-01 | Cargo workspace из нескольких крейтов (§4) | изоляция, быстрые тесты, явные границы | — |
 | D-02 | crossterm — только для raw mode, размера терминала, вывода, и **ввода на Windows** | кроссплатформенность | — |
-| D-03 | На Unix ввод читаем сами (сырые байты из stdin) и парсим своим декодером | crossterm не отдаёт неизвестные последовательности (APC far2l), а нам нужны far2l-расширения, kitty keyboard, win32-input-mode | **спайк T-03**: подтвердить; если crossterm умеет — упростить и записать в DECISIONS |
+| D-03 | На Unix ввод читаем сами (сырые байты из stdin) и парсим своим декодером; **внутренний формат клавиатурных событий — Win32 InputEvent (как в far2l/f4/unxed/winkeys), см. docs/DECISIONS.md D-03** | crossterm не отдаёт неизвестные последовательности (APC far2l), а нам нужны far2l-расширения, kitty keyboard, win32-input-mode | **спайк T-03**: подтвердить; если crossterm умеет — упростить и записать в DECISIONS |
 | D-04 | Собственный двойной cell-буфер + diff-рендер (не ratatui) | mc-подобные диалоги, тени, фокус, контроль над рамками и цветом | — |
 | D-05 | Однопоточный UI-цикл + рабочие потоки для файловых операций, связь через каналы `std::sync::mpsc` | простота, без async-рантайма | — |
 | D-06 | Все команды — строковые action names в стиле mc (`Copy`, `CdParent`, …) | keymap.ini работает как есть; будущий Lua вызывает те же действия | — |
@@ -151,6 +151,12 @@ m5/
 ## 5. Архитектура
 
 ### 5.1 m5-term
+
+> **Ревизия D-03:** внутренний формат ввода — `InputEvent` в стиле Win32 INPUT_RECORD
+> (`crates/m5-term/src/key.rs`: VirtualKeyCode, ControlKeyState, Char, UnshiftedChar, KeyDown,
+> RepeatCount, VirtualScanCode). Типы `Mods`/`KeyCode`/`Key`/`Event` ниже — исходный набросок,
+> до T-04 не реализованный; как они соотносятся с `InputEvent` (например, `Key` только для keymap),
+> решается в T-04 (см. Q-12 в docs/QUESTIONS.md).
 
 ```rust
 pub struct Mods(u8); // SHIFT=1, ALT=2, CTRL=4, SUPER=8; битовые операции
@@ -507,7 +513,7 @@ Windows; на легаси-терминале — недоступна (это �
   **Остановиться и показать результат пользователю** (это развилка архитектуры).
 
 ### Итерация 1 — терминал и рендер
-- **T-04** `Key`, `Mods`, `Event`; `Decoder` для легаси xterm + bracketed paste + SGR mouse. Тесты.
+- **T-04** (на базе `InputEvent`, см. ревизию D-03 в §5.1; `Key`/`Mods`/`Event` — по итогам Q-12) `Decoder` для легаси xterm + bracketed paste + SGR mouse. Тесты.
 - **T-05** Декодер kitty + win32-input-mode. Тесты.
 - **T-06** Декодер far2l APC + маппинг VK. Тесты с base64-фикстурами, собранными вручную по §5.1.1.
 - **T-07** `UnixTerminal`: raw mode, alt screen, согласование возможностей (§5.1.2), SIGWINCH,

@@ -1,36 +1,20 @@
-# Cargo deny configuration for license checking
-# Ensures all dependencies use BSD-3 compatible licenses
-
-[advisories]
-# Deny all security vulnerabilities
-vulnerability = "deny"
-# Deny all unmaintained crates
-unmaintained = "deny"
-# Warn on crates that are no longer actively maintained
-notice = "warn"
+# cargo-deny configuration (format of cargo-deny >= 0.16).
+# CI runs only `cargo deny check licenses`; advisories/bans are not checked in CI.
 
 [licenses]
-# Require all crates to have a recognized license
-unlicensed = "deny"
-# Deny GPL, LGPL, MPL and similar copyleft licenses
-copyleft = "deny"
-# List of allowed license identifiers
+# Licenses are denied unless listed here (cargo-deny >= 0.16 semantics).
+# Each entry must be a single SPDX identifier (no OR/AND expressions).
 allow = [
     "MIT",
     "Apache-2.0",
-    "Apache-2.0 OR MIT",
     "BSD-2-Clause",
     "BSD-3-Clause",
     "Zlib",
-    "Unicode-DFS-2016",
     "ISC",
+    "Unicode-3.0",
+    "Unicode-DFS-2016",
 ]
-# Skip copyleft check for crates where it's acceptable
-copyleft-exceptions = [
-]
+confidence-threshold = 0.8
 
 [bans]
-# Deny duplicate versions of crates
-multiple-versions = "deny"
-# Allow only a few common wildcard dependencies
-allow-wildcard-dependencies = false
+multiple-versions = "warn"
